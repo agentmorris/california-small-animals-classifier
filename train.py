@@ -1,0 +1,268 @@
+"""Train the first-pass California Small Animals classifier (eva02_large @ 448, PTL).
+
+Reads split.parquet, builds train/val datasets from the F: folder tree, fine-tunes
+a timm backbone with the agreed augmentation, logs micro + macro accuracy, and
+checkpoints every epoch.
+
+Examples:
+  python train.py --devices 1 --benchmark-steps 60     # quick throughput probe
+  python train.py --devices 2                           # full run, both GPUs (DDP)
+"""
+import argparse
+import os
+import platform
+import time
+
+import numpy as np
+import pandas as pd
+import torch
+import torch._dynamo
+import torch.nn as nn
+import lightning as L
+from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
+from lightning.pytorch.loggers import CSVLogger
+from lightning.pytorch.strategies import DDPStrategy
+from torch.utils.data import Dataset, DataLoader
+from torchmetrics.classification import MulticlassAccuracy
+from PIL import Image
+import timm
+
+from label_map import OUT, CLASS_ORDER, TRAIN_ROOT
+from transforms import TrainTransform, ValTransform
+
+SPLIT = os.path.join(OUT, "split.parquet")
+CKPT_DIR = os.path.join(OUT, "checkpoints")
+LOG_DIR = os.path.join(OUT, "logs")
+CLASS_TO_IDX = {c: i for i, c in enumerate(CLASS_ORDER)}
+
+
+class Throughput(L.Callback):
+    """Report steady-state images/sec (skips warmup steps)."""
+    def __init__(self, batch_size, warmup=8):
+        self.batch_size = batch_size
+        self.warmup = warmup
+        self.n = 0
+        self.t0 = None
+
+    def on_train_batch_end(self, trainer, pl_module, *a):
+        self.n += 1
+        if self.n == self.warmup:
+            torch.cuda.synchronize()
+            self.t0 = time.time()
+
+    def on_train_end(self, trainer, pl_module):
+        if self.t0 is None:
+            return
+        torch.cuda.synchronize()
+        dt = time.time() - self.t0
+        steps = self.n - self.warmup
+        if steps <= 0 or dt <= 0:
+            return
+        world = trainer.world_size
+        local_it = steps / dt
+        gbs = self.batch_size * world
+        if trainer.is_global_zero:
+            print(f"\n[THROUGHPUT] world={world} local={local_it:.2f} it/s  "
+                  f"global={local_it*gbs:.0f} img/s  "
+                  f"(~{1_057_239/(local_it*gbs)/60:.1f} min/epoch over 1.06M imgs)",
+                  flush=True)
+
+
+class CSADataset(Dataset):
+    def __init__(self, paths, labels, transform):
+        self.paths = paths
+        self.labels = labels
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.paths)
+
+    def __getitem__(self, i):
+        # robust to missing/corrupt files (e.g. the known 0-byte source image):
+        # fall back to the next index rather than crashing the run.
+        for off in range(8):
+            j = (i + off) % len(self.paths)
+            try:
+                img = Image.open(self.paths[j]).convert("RGB")
+                return self.transform(img), int(self.labels[j])
+            except Exception:
+                continue
+        raise RuntimeError(f"could not load image near index {i}")
+
+
+def load_frames():
+    df = pd.read_parquet(SPLIT, columns=["dest_rel", "target_class", "split"])
+    df["label"] = df["target_class"].astype(str).map(CLASS_TO_IDX).astype(int)
+    df["path"] = [os.path.join(TRAIN_ROOT, d.replace("/", os.sep)) for d in df.dest_rel]
+    return df[df.split == "train"], df[df.split == "val"]
+
+
+def class_weights(train_labels, scheme="sqrt", cap=10.0):
+    counts = np.bincount(train_labels, minlength=len(CLASS_ORDER)).astype(np.float64)
+    counts = np.clip(counts, 1, None)
+    freq = counts / counts.sum()
+    if scheme == "none":
+        w = np.ones_like(freq)
+    elif scheme == "sqrt":
+        w = freq ** -0.5
+    elif scheme == "inv":
+        w = freq ** -1.0
+    else:
+        raise ValueError(scheme)
+    w = w / w.mean()
+    w = np.clip(w, None, cap)
+    return torch.tensor(w, dtype=torch.float32), counts
+
+
+class Classifier(L.LightningModule):
+    def __init__(self, model_name, num_classes, lr, weight_decay, label_smoothing,
+                 warmup_epochs, max_epochs, cls_weights, grad_ckpt=True, compile=True):
+        super().__init__()
+        self.save_hyperparameters(ignore=["cls_weights"])
+        self.model = timm.create_model(model_name, pretrained=True,
+                                       num_classes=num_classes)
+        if grad_ckpt and hasattr(self.model, "set_grad_checkpointing"):
+            self.model.set_grad_checkpointing(True)
+        # Compiled wrapper kept in a plain list so it is NOT registered as a
+        # submodule -> state_dict stays clean (self.model.* only), shares params.
+        self._compiled = [torch.compile(self.model)] if compile else None
+        self.register_buffer("cls_weights", cls_weights)
+        self.criterion = nn.CrossEntropyLoss(weight=self.cls_weights,
+                                             label_smoothing=label_smoothing)
+        self.train_acc = MulticlassAccuracy(num_classes, average="micro")
+        self.val_micro = MulticlassAccuracy(num_classes, average="micro")
+        self.val_macro = MulticlassAccuracy(num_classes, average="macro")
+
+    def forward(self, x):
+        return self._compiled[0](x) if self._compiled is not None else self.model(x)
+
+    def training_step(self, batch, _):
+        x, y = batch
+        logits = self(x)
+        loss = self.criterion(logits, y)
+        self.train_acc(logits, y)
+        self.log("train/loss", loss, prog_bar=True, sync_dist=True)
+        self.log("train/acc", self.train_acc, prog_bar=True, on_step=False, on_epoch=True)
+        return loss
+
+    def validation_step(self, batch, _):
+        x, y = batch
+        logits = self(x)
+        loss = self.criterion(logits, y)
+        self.val_micro(logits, y)
+        self.val_macro(logits, y)
+        self.log("val/loss", loss, prog_bar=True, sync_dist=True)
+        self.log("val/acc_micro", self.val_micro, prog_bar=True)
+        self.log("val/acc_macro", self.val_macro, prog_bar=True)
+
+    def configure_optimizers(self):
+        opt = torch.optim.AdamW(self.parameters(), lr=self.hparams.lr,
+                                weight_decay=self.hparams.weight_decay)
+        warmup = torch.optim.lr_scheduler.LinearLR(
+            opt, start_factor=0.01, total_iters=max(1, self.hparams.warmup_epochs))
+        cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
+            opt, T_max=max(1, self.hparams.max_epochs - self.hparams.warmup_epochs))
+        sched = torch.optim.lr_scheduler.SequentialLR(
+            opt, [warmup, cosine], milestones=[self.hparams.warmup_epochs])
+        return {"optimizer": opt, "lr_scheduler": {"scheduler": sched, "interval": "epoch"}}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--model", default="eva02_large_patch14_448.mim_m38m_ft_in22k_in1k")
+    ap.add_argument("--img-size", type=int, default=448)
+    ap.add_argument("--batch-size", type=int, default=24, help="per GPU")
+    ap.add_argument("--devices", type=int, default=2)
+    ap.add_argument("--epochs", type=int, default=10)
+    ap.add_argument("--lr", type=float, default=1e-4)
+    ap.add_argument("--weight-decay", type=float, default=0.05)
+    ap.add_argument("--label-smoothing", type=float, default=0.1)
+    ap.add_argument("--warmup-epochs", type=int, default=1)
+    ap.add_argument("--weight-scheme", default="sqrt", choices=["none", "sqrt", "inv"])
+    ap.add_argument("--workers", type=int, default=12)
+    ap.add_argument("--accum", type=int, default=1)
+    ap.add_argument("--no-grad-ckpt", action="store_true")
+    ap.add_argument("--no-compile", action="store_true",
+                    help="disable torch.compile (compile is on by default)")
+    ap.add_argument("--benchmark-steps", type=int, default=0,
+                    help="if >0, run only this many train steps (throughput probe)")
+    ap.add_argument("--run-name", default="eva02_v1")
+    ap.add_argument("--resume", default=None,
+                    help="checkpoint path, or 'last' to resume from checkpoints/last.ckpt")
+    args = ap.parse_args()
+
+    torch.set_float32_matmul_precision("high")
+    # torch.compile's DDPOptimizer (graph bucket-splitting) chokes on EVA's
+    # rope/SDPA subgraph; disable it so compile + DDP coexist.
+    if not args.no_compile and args.devices > 1:
+        torch._dynamo.config.optimize_ddp = False
+
+    train_df, val_df = load_frames()
+
+    # resolve normalization from the actual model cfg
+    tmp = timm.create_model(args.model, pretrained=False, num_classes=len(CLASS_ORDER))
+    dc = timm.data.resolve_model_data_config(tmp)
+    mean, std = dc["mean"], dc["std"]
+    del tmp
+    print(f"norm mean={mean} std={std}")
+
+    tt = TrainTransform(args.img_size, mean=mean, std=std)
+    vt = ValTransform(args.img_size, crop_banner_flag=True, mean=mean, std=std)
+
+    train_ds = CSADataset(train_df.path.tolist(), train_df.label.to_numpy(), tt)
+    val_ds = CSADataset(val_df.path.tolist(), val_df.label.to_numpy(), vt)
+    print(f"train={len(train_ds):,}  val={len(val_ds):,}")
+
+    cls_w, counts = class_weights(train_df.label.to_numpy(), args.weight_scheme)
+
+    train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
+                              num_workers=args.workers, pin_memory=True,
+                              persistent_workers=args.workers > 0,
+                              prefetch_factor=4 if args.workers else None, drop_last=True)
+    val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False,
+                            num_workers=args.workers, pin_memory=True,
+                            persistent_workers=args.workers > 0,
+                            prefetch_factor=4 if args.workers else None)
+
+    model = Classifier(args.model, len(CLASS_ORDER), args.lr, args.weight_decay,
+                       args.label_smoothing, args.warmup_epochs, args.epochs,
+                       cls_w, grad_ckpt=not args.no_grad_ckpt,
+                       compile=not args.no_compile)
+
+    ckpt = ModelCheckpoint(dirpath=CKPT_DIR, filename=args.run_name + "-{epoch:02d}",
+                           every_n_epochs=1, save_top_k=-1, save_last=True,
+                           auto_insert_metric_name=False)
+    lrmon = LearningRateMonitor(logging_interval="epoch")
+    callbacks = [lrmon, Throughput(args.batch_size)]
+    if not args.benchmark_steps:
+        callbacks.append(ckpt)
+
+    strategy = "auto"
+    if args.devices > 1:
+        backend = "gloo" if platform.system() == "Windows" else "nccl"
+        strategy = DDPStrategy(process_group_backend=backend,
+                               find_unused_parameters=False)
+        print(f"DDP backend: {backend}")
+
+    trainer = L.Trainer(
+        accelerator="gpu", devices=args.devices, strategy=strategy,
+        precision="bf16-mixed", max_epochs=args.epochs,
+        accumulate_grad_batches=args.accum,
+        callbacks=callbacks,
+        logger=CSVLogger(LOG_DIR, name=args.run_name),
+        log_every_n_steps=50,
+        limit_train_batches=args.benchmark_steps if args.benchmark_steps else 1.0,
+        limit_val_batches=20 if args.benchmark_steps else 1.0,
+    )
+    ckpt_path = None
+    if args.resume == "last":
+        last = os.path.join(CKPT_DIR, "last.ckpt")
+        ckpt_path = last if os.path.exists(last) else None
+        print(f"resume: {ckpt_path or 'no last.ckpt found, starting fresh'}")
+    elif args.resume:
+        ckpt_path = args.resume
+    trainer.fit(model, train_loader, val_loader, ckpt_path=ckpt_path)
+
+
+if __name__ == "__main__":
+    main()
