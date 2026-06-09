@@ -87,5 +87,3 @@ Per-run folder `runs/<run-name>/`:
 - `zebra-tailed lizard` (id 230): `order` = `"phrynosomatidae"` should be `"squamata"`.
 - `western diamondback rattlesnake` (id 235): `family` = `"viperdae"` should be `"viperidae"`.
 - `aspidocelis species` (id 239) is a misspelled duplicate of `aspidoscelis species` (id 158).
-- `ensifera species` (id 44): 2 annotations labeled Sword-billed Hummingbird (Andean; cannot occur in CA) — likely an auto-ID artifact.
-- **Corrupt image file (0 bytes):** `2002875_cemap-small-animals_exclude-identify/images/deployment/2035549/a7056e2a-66da-4610-b0b8-3623a92bf677.jpg` (image id `a7056e2a-...`, location `2002875_siteh2-hp`, labeled `rodent`). Metadata lists it as 2048x1440 but the file is empty. Dropped from training.
