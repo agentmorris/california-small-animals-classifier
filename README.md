@@ -65,7 +65,6 @@ Per-run folder `runs/<run-name>/`:
 - **Eval script**: Verify that we can replicate the validation accuracy numbers using the bulk inference script
 - **Inference-time banner-crop A/B (quick):** evaluate val accuracy with the banner crop on vs off, to pick the inference default and confirm the synthetic-banner augmentation actually makes the model crop-agnostic.
 
-
 ## Next steps / ideas to revisit
 
 - **Architecture A/B (if we want to push accuracy past eva02_large@448):** candidates to prioritize, roughly in order —
