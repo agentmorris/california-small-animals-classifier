@@ -13,7 +13,7 @@ See `analyze_metadata.py` / `analyze_taxonomy.py` (outputs in the output folder)
 
 ## Plan (first pass)
 
-- **Single flat multi-class classifier** over a medium-granularity label set (**30 classes** = 28 animal + `blank` + `setup_pickup`); see `label_map.py`.
+- **Single flat multi-class classifier** over a medium-granularity label set (**29 classes** = 27 animal + `blank` + `setup_pickup`); see `label_map.py`. Provenance (camera split + category assignments) is recorded in `training_info.20260608.json`.
 - Split **by camera**, 85/15 train/val, **class-aware via ILP** (every class lands ~15% in val and appears on both sides); locked in `camera_split.csv`. See `make_split.py`.
 - `blank` downsampled to **1 frame/sequence, then capped 300/camera (~115k)**. Multi-annotation images (9,372) dropped. ~1.06M images total.
 - Stored training copies: whole frame resized to **~512px short side** (JPEG q90) under `F:\data\california-small-animals-training` as `train/<class>/<camera>__<id>.jpg`.
@@ -25,15 +25,33 @@ Native Windows PyTorch is missing FlashAttention/mem-efficient SDPA (falls back 
 
 Fast config (accuracy-safe): **autocast bf16 (fp32 master) + grad-checkpointing + `torch.compile`** → ~37 img/s/GPU (vs 22 uncompiled). Notes: `torch.compile` + DDP needs `torch._dynamo.config.optimize_ddp = False` (DDPOptimizer chokes on EVA's rope/SDPA subgraph); `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` avoids compile-time fragmentation OOMs; per-GPU batch 24. Measured ~64 img/s on 2 GPUs (both ~100% util, ~12 GB each), **~4.2 h/epoch** (18,618 steps).
 
-**Run training** (from a WSL shell — the launcher activates the env, sets the alloc config, and runs `train.py`):
+**Run training** (from a WSL shell — the launcher activates the env, cds into the correct folder, and sets the alloc config, and runs `train.py`):
 
 ```
-bash /mnt/c/temp/california-small-animals-output/wsl_train.sh --devices 2 --batch-size 24 --workers 12 --epochs 10 --run-name eva02_v1
+bash /mnt/c/temp/california-small-animals-output/wsl_train.sh --devices 2 --batch-size 24 --workers 12 --epochs 20 --patience 5 --run-name eva02-20260101
 ```
 
-Checkpoints save every epoch (+ `last.ckpt`) to `…/checkpoints/`; resume with `--resume last`. Live progress shows only in a real terminal; if you redirect to a log, track `logs/eva02_v1/version_*/metrics.csv` or `nvidia-smi`.
+`--patience 5` enables early stopping on `val/acc_macro` (stops if macro accuracy hasn't improved for 5 epochs); omit it for a fixed `--epochs` run. Each run writes everything to its own folder `runs/<run-name>/` (see "Output folder structure" below); `--run-name` defaults to a timestamp, and the launcher refuses to reuse an existing run folder — pick a new name, or pass `--resume last` to continue an interrupted one. Track progress via `runs/<run-name>/metrics.csv` (or `nvidia-smi`); the best epoch's checkpoint (by `val/acc_macro`) is the one to keep.
 
-### Preprocessing & augmentation
+### Output folder structure
+
+The base output folder `C:\temp\california-small-animals-output` (`/mnt/c/temp/...` in WSL) holds only cross-run files; everything produced by a single training run lives under `runs/<run-name>/`.
+
+Base folder — shared across all runs (six files):
+- `split.parquet` — per-image train/val assignment + resized-image paths; read by `train.py` on every run.
+- `manifest.parquet` — per-image source-of-truth manifest (kept images, labels, camera, sequence); input to `make_split.py`.
+- `camera_split.parquet` — the locked camera→split (train/val) assignment.
+- `camera_split.csv` — the same assignment, human-readable.
+- `camera_class_counts.parquet` — per-camera per-class image counts (informational).
+- `wsl_train.sh` — the training launcher.
+
+Per-run folder `runs/<run-name>/`:
+- `checkpoints/` — per-epoch checkpoints (`<run-name>-NN.ckpt`) plus `last.ckpt`.
+- `hparams.yaml` — the run's hyperparameters.
+- `metrics.csv` — train/val metrics (loss, micro/macro accuracy, learning rate).
+- `train_<run-name>.log` — full stdout/stderr log of the run.
+
+### Preprocessing and augmentation
 
 - **448×448 input by squashing the whole frame** — no scale-crop, no center-crop. With image-level labels and a small animal anywhere in frame, aggressive `RandomResizedCrop` would frequently crop the animal out (label noise), and val center-crop would clip edge animals. The downward-facing/baited-box geometry means low scale variation, so the whole frame at a fixed scale is fine, and train/val share the same field of view.
 - **Info-banner handling.** Reconyx top/bottom banners carry timestamp + temperature (a shortcut the model could exploit, that won't transfer to other cameras) and are the only consistent orientation cue. We **crop the banner at training** (measured for this dataset) and add **synthetic-banner augmentation** (random dark bars of varying height/content at top/bottom) so the model learns to ignore arbitrary banners on *other* cameras at inference. Day/night info still comes for free from IR-grayscale vs daytime color. The inference script makes the banner crop configurable (independent top/bottom; default off — robust thanks to the synthetic-banner aug).
@@ -43,11 +61,10 @@ Checkpoints save every epoch (+ `last.ckpt`) to `…/checkpoints/`; resume with 
 
 ## TODO (near-term, this pass)
 
+- **Inference script**: bulk inference script to emit the [MegaDetector output format](https://lila.science/megadetector-output-format), using a full-image "detection" box per image (this is a classification-only model), roughly matching the semantics of [run_md_and_speciesnet.py](https://github.com/agentmorris/MegaDetector/blob/main/megadetector/detection/run_md_and_speciesnet.py) (images only, no video).
+- **Eval script**: Verify that we can replicate the validation accuracy numbers using the bulk inference script
 - **Inference-time banner-crop A/B (quick):** evaluate val accuracy with the banner crop on vs off, to pick the inference default and confirm the synthetic-banner augmentation actually makes the model crop-agnostic.
 
-## Output format (later)
-
-Bulk inference will emit the [MegaDetector output format](https://lila.science/megadetector-output-format), using a full-image "detection" box per image (this is a classification-only model), roughly matching the semantics of [run_md_and_speciesnet.py](https://github.com/agentmorris/MegaDetector/blob/main/megadetector/detection/run_md_and_speciesnet.py) (images only, no video).
 
 ## Next steps / ideas to revisit
 

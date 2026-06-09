@@ -9,6 +9,7 @@ Examples:
   python train.py --devices 2                           # full run, both GPUs (DDP)
 """
 import argparse
+import datetime
 import os
 import platform
 import time
@@ -19,7 +20,8 @@ import torch
 import torch._dynamo
 import torch.nn as nn
 import lightning as L
-from lightning.pytorch.callbacks import ModelCheckpoint, LearningRateMonitor
+from lightning.pytorch.callbacks import (ModelCheckpoint, LearningRateMonitor,
+                                         EarlyStopping)
 from lightning.pytorch.loggers import CSVLogger
 from lightning.pytorch.strategies import DDPStrategy
 from torch.utils.data import Dataset, DataLoader
@@ -31,8 +33,7 @@ from label_map import OUT, CLASS_ORDER, TRAIN_ROOT
 from transforms import TrainTransform, ValTransform
 
 SPLIT = os.path.join(OUT, "split.parquet")
-CKPT_DIR = os.path.join(OUT, "checkpoints")
-LOG_DIR = os.path.join(OUT, "logs")
+RUNS_DIR = os.path.join(OUT, "runs")   # each run lives in runs/<run-name>/
 CLASS_TO_IDX = {c: i for i, c in enumerate(CLASS_ORDER)}
 
 
@@ -173,7 +174,7 @@ def main():
     ap.add_argument("--img-size", type=int, default=448)
     ap.add_argument("--batch-size", type=int, default=24, help="per GPU")
     ap.add_argument("--devices", type=int, default=2)
-    ap.add_argument("--epochs", type=int, default=10)
+    ap.add_argument("--epochs", type=int, default=20)
     ap.add_argument("--lr", type=float, default=1e-4)
     ap.add_argument("--weight-decay", type=float, default=0.05)
     ap.add_argument("--label-smoothing", type=float, default=0.1)
@@ -186,10 +187,25 @@ def main():
                     help="disable torch.compile (compile is on by default)")
     ap.add_argument("--benchmark-steps", type=int, default=0,
                     help="if >0, run only this many train steps (throughput probe)")
-    ap.add_argument("--run-name", default="eva02_v1")
+    ap.add_argument("--run-name", default=None,
+                    help="run folder name under runs/; default = timestamp")
     ap.add_argument("--resume", default=None,
                     help="checkpoint path, or 'last' to resume from checkpoints/last.ckpt")
+    ap.add_argument("--patience", type=int, default=0,
+                    help="if >0, enable early stopping on val/acc_macro (mode max) "
+                         "with this patience in epochs")
     args = ap.parse_args()
+
+    # Per-run output folder: runs/<run-name>/ holds checkpoints/, metrics.csv,
+    # hparams.yaml, and (via the launcher) the train log. Auto-name with a
+    # timestamp when unset; share the resolved name with DDP-spawned subprocesses
+    # via an env var so every rank uses the same folder.
+    run_name = (args.run_name or os.environ.get("CSA_RUN_NAME")
+                or datetime.datetime.now().strftime("%Y.%m.%d.%H.%M.%S"))
+    os.environ["CSA_RUN_NAME"] = run_name
+    run_dir = os.path.join(RUNS_DIR, run_name)
+    ckpt_dir = os.path.join(run_dir, "checkpoints")
+    os.makedirs(ckpt_dir, exist_ok=True)
 
     torch.set_float32_matmul_precision("high")
     # torch.compile's DDPOptimizer (graph bucket-splitting) chokes on EVA's
@@ -229,13 +245,16 @@ def main():
                        cls_w, grad_ckpt=not args.no_grad_ckpt,
                        compile=not args.no_compile)
 
-    ckpt = ModelCheckpoint(dirpath=CKPT_DIR, filename=args.run_name + "-{epoch:02d}",
+    ckpt = ModelCheckpoint(dirpath=ckpt_dir, filename=run_name + "-{epoch:02d}",
                            every_n_epochs=1, save_top_k=-1, save_last=True,
                            auto_insert_metric_name=False)
     lrmon = LearningRateMonitor(logging_interval="epoch")
     callbacks = [lrmon, Throughput(args.batch_size)]
     if not args.benchmark_steps:
         callbacks.append(ckpt)
+        if args.patience > 0:
+            callbacks.append(EarlyStopping(monitor="val/acc_macro", mode="max",
+                                           patience=args.patience))
 
     strategy = "auto"
     if args.devices > 1:
@@ -249,14 +268,15 @@ def main():
         precision="bf16-mixed", max_epochs=args.epochs,
         accumulate_grad_batches=args.accum,
         callbacks=callbacks,
-        logger=CSVLogger(LOG_DIR, name=args.run_name),
+        enable_checkpointing=not bool(args.benchmark_steps),
+        logger=CSVLogger(save_dir=run_dir, name="", version=""),
         log_every_n_steps=50,
         limit_train_batches=args.benchmark_steps if args.benchmark_steps else 1.0,
         limit_val_batches=20 if args.benchmark_steps else 1.0,
     )
     ckpt_path = None
     if args.resume == "last":
-        last = os.path.join(CKPT_DIR, "last.ckpt")
+        last = os.path.join(ckpt_dir, "last.ckpt")
         ckpt_path = last if os.path.exists(last) else None
         print(f"resume: {ckpt_path or 'no last.ckpt found, starting fresh'}")
     elif args.resume:

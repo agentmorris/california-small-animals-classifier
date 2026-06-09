@@ -1,0 +1,2491 @@
+{
+  "created": "2026-06-08",
+  "dataset": "california-small-animals",
+  "source_metadata": "california_small_animals_with_sequences_fixed.json",
+  "description": "First-pass classifier: flat 29-class label set (27 animal + blank + setup_pickup); split by camera (location==folder, 1:1). This file records the train/val camera assignment and how the 256 source categories were mapped/merged/excluded.",
+  "parameters": {
+    "split_method": "class-aware ILP by camera, minimize per-class relative deviation from val_fraction",
+    "val_fraction": 0.15,
+    "split_seed": 20260608,
+    "blank_downsampling": {
+      "frames_per_sequence": 1,
+      "per_camera_cap": 300
+    },
+    "multi_annotation_images": "dropped (9,372)",
+    "image_resize": "whole frame, short side ~512px, JPEG q90"
+  },
+  "n_training_classes": 29,
+  "training_classes": [
+    {
+      "index": 0,
+      "name": "blank"
+    },
+    {
+      "index": 1,
+      "name": "setup_pickup"
+    },
+    {
+      "index": 2,
+      "name": "mouse"
+    },
+    {
+      "index": 3,
+      "name": "vole"
+    },
+    {
+      "index": 4,
+      "name": "rodent_other"
+    },
+    {
+      "index": 5,
+      "name": "woodrat_rat"
+    },
+    {
+      "index": 6,
+      "name": "squirrel"
+    },
+    {
+      "index": 7,
+      "name": "kangaroo_rat_pocket_mouse"
+    },
+    {
+      "index": 8,
+      "name": "chipmunk"
+    },
+    {
+      "index": 9,
+      "name": "pocket_gopher"
+    },
+    {
+      "index": 10,
+      "name": "rabbit_hare"
+    },
+    {
+      "index": 11,
+      "name": "shrew_mole"
+    },
+    {
+      "index": 12,
+      "name": "skunk"
+    },
+    {
+      "index": 13,
+      "name": "weasel"
+    },
+    {
+      "index": 14,
+      "name": "opossum"
+    },
+    {
+      "index": 15,
+      "name": "mammal_other"
+    },
+    {
+      "index": 16,
+      "name": "spiny_lizard"
+    },
+    {
+      "index": 17,
+      "name": "whiptail"
+    },
+    {
+      "index": 18,
+      "name": "snake"
+    },
+    {
+      "index": 19,
+      "name": "alligator_lizard"
+    },
+    {
+      "index": 20,
+      "name": "skink"
+    },
+    {
+      "index": 21,
+      "name": "rattlesnake"
+    },
+    {
+      "index": 22,
+      "name": "lizard_other"
+    },
+    {
+      "index": 23,
+      "name": "amphibian"
+    },
+    {
+      "index": 24,
+      "name": "bird"
+    },
+    {
+      "index": 25,
+      "name": "insect"
+    },
+    {
+      "index": 26,
+      "name": "isopod_crustacean"
+    },
+    {
+      "index": 27,
+      "name": "spider_arachnid"
+    },
+    {
+      "index": 28,
+      "name": "other_invert"
+    }
+  ],
+  "per_class_image_counts": {
+    "blank": {
+      "train": 94476,
+      "val": 20538,
+      "total": 115014,
+      "val_pct": 17.9
+    },
+    "setup_pickup": {
+      "train": 2772,
+      "val": 470,
+      "total": 3242,
+      "val_pct": 14.5
+    },
+    "mouse": {
+      "train": 218650,
+      "val": 38899,
+      "total": 257549,
+      "val_pct": 15.1
+    },
+    "vole": {
+      "train": 105690,
+      "val": 18985,
+      "total": 124675,
+      "val_pct": 15.2
+    },
+    "rodent_other": {
+      "train": 109765,
+      "val": 20360,
+      "total": 130125,
+      "val_pct": 15.6
+    },
+    "woodrat_rat": {
+      "train": 61708,
+      "val": 10658,
+      "total": 72366,
+      "val_pct": 14.7
+    },
+    "squirrel": {
+      "train": 47664,
+      "val": 8459,
+      "total": 56123,
+      "val_pct": 15.1
+    },
+    "kangaroo_rat_pocket_mouse": {
+      "train": 26732,
+      "val": 5160,
+      "total": 31892,
+      "val_pct": 16.2
+    },
+    "chipmunk": {
+      "train": 9164,
+      "val": 1619,
+      "total": 10783,
+      "val_pct": 15.0
+    },
+    "pocket_gopher": {
+      "train": 895,
+      "val": 160,
+      "total": 1055,
+      "val_pct": 15.2
+    },
+    "rabbit_hare": {
+      "train": 21438,
+      "val": 3844,
+      "total": 25282,
+      "val_pct": 15.2
+    },
+    "shrew_mole": {
+      "train": 14678,
+      "val": 2656,
+      "total": 17334,
+      "val_pct": 15.3
+    },
+    "skunk": {
+      "train": 3831,
+      "val": 653,
+      "total": 4484,
+      "val_pct": 14.6
+    },
+    "weasel": {
+      "train": 2242,
+      "val": 396,
+      "total": 2638,
+      "val_pct": 15.0
+    },
+    "opossum": {
+      "train": 810,
+      "val": 140,
+      "total": 950,
+      "val_pct": 14.7
+    },
+    "mammal_other": {
+      "train": 675,
+      "val": 122,
+      "total": 797,
+      "val_pct": 15.3
+    },
+    "spiny_lizard": {
+      "train": 51467,
+      "val": 9262,
+      "total": 60729,
+      "val_pct": 15.3
+    },
+    "whiptail": {
+      "train": 35751,
+      "val": 6510,
+      "total": 42261,
+      "val_pct": 15.4
+    },
+    "snake": {
+      "train": 15413,
+      "val": 2508,
+      "total": 17921,
+      "val_pct": 14.0
+    },
+    "alligator_lizard": {
+      "train": 7159,
+      "val": 1246,
+      "total": 8405,
+      "val_pct": 14.8
+    },
+    "skink": {
+      "train": 5409,
+      "val": 1029,
+      "total": 6438,
+      "val_pct": 16.0
+    },
+    "rattlesnake": {
+      "train": 1528,
+      "val": 259,
+      "total": 1787,
+      "val_pct": 14.5
+    },
+    "lizard_other": {
+      "train": 558,
+      "val": 99,
+      "total": 657,
+      "val_pct": 15.1
+    },
+    "amphibian": {
+      "train": 10270,
+      "val": 1823,
+      "total": 12093,
+      "val_pct": 15.1
+    },
+    "bird": {
+      "train": 23100,
+      "val": 4110,
+      "total": 27210,
+      "val_pct": 15.1
+    },
+    "insect": {
+      "train": 19400,
+      "val": 3367,
+      "total": 22767,
+      "val_pct": 14.8
+    },
+    "isopod_crustacean": {
+      "train": 788,
+      "val": 139,
+      "total": 927,
+      "val_pct": 15.0
+    },
+    "spider_arachnid": {
+      "train": 1436,
+      "val": 263,
+      "total": 1699,
+      "val_pct": 15.5
+    },
+    "other_invert": {
+      "train": 201,
+      "val": 36,
+      "total": 237,
+      "val_pct": 15.2
+    }
+  },
+  "category_assignments": {
+    "blank": {
+      "n_source_categories": 2,
+      "total_annotations": 1320489,
+      "sources": [
+        {
+          "source_category": "blank",
+          "annotations": 1126990
+        },
+        {
+          "source_category": "misfire",
+          "annotations": 193499
+        }
+      ]
+    },
+    "setup_pickup": {
+      "n_source_categories": 1,
+      "total_annotations": 3242,
+      "sources": [
+        {
+          "source_category": "setup_pickup",
+          "annotations": 3242
+        }
+      ]
+    },
+    "mouse": {
+      "n_source_categories": 8,
+      "total_annotations": 258899,
+      "sources": [
+        {
+          "source_category": "mouse species",
+          "annotations": 252986
+        },
+        {
+          "source_category": "peromyscus species",
+          "annotations": 5363
+        },
+        {
+          "source_category": "house mouse",
+          "annotations": 371
+        },
+        {
+          "source_category": "cactus mouse",
+          "annotations": 76
+        },
+        {
+          "source_category": "north american deermouse",
+          "annotations": 47
+        },
+        {
+          "source_category": "south-western jumping mouse",
+          "annotations": 46
+        },
+        {
+          "source_category": "northern grasshopper mouse",
+          "annotations": 7
+        },
+        {
+          "source_category": "reithrodontomys species",
+          "annotations": 3
+        }
+      ]
+    },
+    "vole": {
+      "n_source_categories": 4,
+      "total_annotations": 130534,
+      "sources": [
+        {
+          "source_category": "arvicolinae subfamily",
+          "annotations": 124342
+        },
+        {
+          "source_category": "california vole",
+          "annotations": 4437
+        },
+        {
+          "source_category": "microtus species",
+          "annotations": 1700
+        },
+        {
+          "source_category": "sagebrush vole",
+          "annotations": 55
+        }
+      ]
+    },
+    "rodent_other": {
+      "n_source_categories": 6,
+      "total_annotations": 131024,
+      "sources": [
+        {
+          "source_category": "rodent",
+          "annotations": 112248
+        },
+        {
+          "source_category": "cricetidae family",
+          "annotations": 17404
+        },
+        {
+          "source_category": "muridae family",
+          "annotations": 808
+        },
+        {
+          "source_category": "small mammal",
+          "annotations": 512
+        },
+        {
+          "source_category": "north american porcupine",
+          "annotations": 42
+        },
+        {
+          "source_category": "muskrat",
+          "annotations": 10
+        }
+      ]
+    },
+    "woodrat_rat": {
+      "n_source_categories": 10,
+      "total_annotations": 72658,
+      "sources": [
+        {
+          "source_category": "neotoma species",
+          "annotations": 27378
+        },
+        {
+          "source_category": "rattus species",
+          "annotations": 19642
+        },
+        {
+          "source_category": "woodrat or rat or mouse species",
+          "annotations": 11846
+        },
+        {
+          "source_category": "woodrat or rat species",
+          "annotations": 9797
+        },
+        {
+          "source_category": "dusky-footed woodrat",
+          "annotations": 3093
+        },
+        {
+          "source_category": "sigmodon species",
+          "annotations": 327
+        },
+        {
+          "source_category": "house rat",
+          "annotations": 320
+        },
+        {
+          "source_category": "bushy-tailed woodrat",
+          "annotations": 146
+        },
+        {
+          "source_category": "desert woodrat",
+          "annotations": 70
+        },
+        {
+          "source_category": "brown rat",
+          "annotations": 39
+        }
+      ]
+    },
+    "squirrel": {
+      "n_source_categories": 13,
+      "total_annotations": 56129,
+      "sources": [
+        {
+          "source_category": "white-tailed antelope squirrel",
+          "annotations": 35128
+        },
+        {
+          "source_category": "california ground squirrel",
+          "annotations": 6227
+        },
+        {
+          "source_category": "sciuridae family",
+          "annotations": 4743
+        },
+        {
+          "source_category": "belding's ground squirrel",
+          "annotations": 4450
+        },
+        {
+          "source_category": "round-tailed ground squirrel",
+          "annotations": 2555
+        },
+        {
+          "source_category": "golden mantled ground squirrel",
+          "annotations": 1936
+        },
+        {
+          "source_category": "ammospermophilus species",
+          "annotations": 469
+        },
+        {
+          "source_category": "otospermophilus species",
+          "annotations": 348
+        },
+        {
+          "source_category": "nelson's antelope squirrel",
+          "annotations": 142
+        },
+        {
+          "source_category": "douglas's squirrel",
+          "annotations": 80
+        },
+        {
+          "source_category": "mohave ground squirrel",
+          "annotations": 31
+        },
+        {
+          "source_category": "sciurus species",
+          "annotations": 17
+        },
+        {
+          "source_category": "western gray squirrel",
+          "annotations": 3
+        }
+      ]
+    },
+    "kangaroo_rat_pocket_mouse": {
+      "n_source_categories": 6,
+      "total_annotations": 31935,
+      "sources": [
+        {
+          "source_category": "heteromyidae family",
+          "annotations": 26319
+        },
+        {
+          "source_category": "dipodomys species",
+          "annotations": 5355
+        },
+        {
+          "source_category": "perognathinae subfamily",
+          "annotations": 133
+        },
+        {
+          "source_category": "ord's kangaroo rat",
+          "annotations": 102
+        },
+        {
+          "source_category": "california kangaroo rat",
+          "annotations": 19
+        },
+        {
+          "source_category": "chaetodipus species",
+          "annotations": 7
+        }
+      ]
+    },
+    "chipmunk": {
+      "n_source_categories": 5,
+      "total_annotations": 10786,
+      "sources": [
+        {
+          "source_category": "neotamias species",
+          "annotations": 10474
+        },
+        {
+          "source_category": "sonoma chipmunk",
+          "annotations": 147
+        },
+        {
+          "source_category": "long-eared chipmunk",
+          "annotations": 134
+        },
+        {
+          "source_category": "merriam's chipmunk",
+          "annotations": 26
+        },
+        {
+          "source_category": "yellow-cheeked chipmunk",
+          "annotations": 5
+        }
+      ]
+    },
+    "pocket_gopher": {
+      "n_source_categories": 3,
+      "total_annotations": 1070,
+      "sources": [
+        {
+          "source_category": "thomomys species",
+          "annotations": 601
+        },
+        {
+          "source_category": "botta's pocket gopher",
+          "annotations": 457
+        },
+        {
+          "source_category": "geomyidae family",
+          "annotations": 12
+        }
+      ]
+    },
+    "rabbit_hare": {
+      "n_source_categories": 7,
+      "total_annotations": 25475,
+      "sources": [
+        {
+          "source_category": "sylvilagus species",
+          "annotations": 19541
+        },
+        {
+          "source_category": "lagomorpha order",
+          "annotations": 1665
+        },
+        {
+          "source_category": "rabbit and hare family",
+          "annotations": 1555
+        },
+        {
+          "source_category": "brush rabbit",
+          "annotations": 1303
+        },
+        {
+          "source_category": "desert cottontail",
+          "annotations": 960
+        },
+        {
+          "source_category": "black-tailed jackrabbit",
+          "annotations": 281
+        },
+        {
+          "source_category": "lepus species",
+          "annotations": 170
+        }
+      ]
+    },
+    "shrew_mole": {
+      "n_source_categories": 6,
+      "total_annotations": 17498,
+      "sources": [
+        {
+          "source_category": "soricidae family",
+          "annotations": 16708
+        },
+        {
+          "source_category": "sorex species",
+          "annotations": 732
+        },
+        {
+          "source_category": "shrew-mole",
+          "annotations": 33
+        },
+        {
+          "source_category": "scapanus species",
+          "annotations": 20
+        },
+        {
+          "source_category": "broad-footed mole",
+          "annotations": 3
+        },
+        {
+          "source_category": "eulipotyphla order",
+          "annotations": 2
+        }
+      ]
+    },
+    "skunk": {
+      "n_source_categories": 4,
+      "total_annotations": 4484,
+      "sources": [
+        {
+          "source_category": "striped skunk",
+          "annotations": 3836
+        },
+        {
+          "source_category": "western spotted skunk",
+          "annotations": 646
+        },
+        {
+          "source_category": "skunk family",
+          "annotations": 1
+        },
+        {
+          "source_category": "mephitis species",
+          "annotations": 1
+        }
+      ]
+    },
+    "weasel": {
+      "n_source_categories": 6,
+      "total_annotations": 2641,
+      "sources": [
+        {
+          "source_category": "long-tailed weasel",
+          "annotations": 2420
+        },
+        {
+          "source_category": "mustelinae subfamily",
+          "annotations": 165
+        },
+        {
+          "source_category": "weasel family",
+          "annotations": 23
+        },
+        {
+          "source_category": "american mink",
+          "annotations": 20
+        },
+        {
+          "source_category": "stoat",
+          "annotations": 10
+        },
+        {
+          "source_category": "weasel species",
+          "annotations": 3
+        }
+      ]
+    },
+    "opossum": {
+      "n_source_categories": 1,
+      "total_annotations": 950,
+      "sources": [
+        {
+          "source_category": "virginia opossum",
+          "annotations": 950
+        }
+      ]
+    },
+    "mammal_other": {
+      "n_source_categories": 14,
+      "total_annotations": 806,
+      "sources": [
+        {
+          "source_category": "mammal",
+          "annotations": 254
+        },
+        {
+          "source_category": "coyote",
+          "annotations": 230
+        },
+        {
+          "source_category": "domestic cattle",
+          "annotations": 126
+        },
+        {
+          "source_category": "elk",
+          "annotations": 78
+        },
+        {
+          "source_category": "american black bear",
+          "annotations": 49
+        },
+        {
+          "source_category": "northern raccoon",
+          "annotations": 23
+        },
+        {
+          "source_category": "domestic cat",
+          "annotations": 16
+        },
+        {
+          "source_category": "grey fox",
+          "annotations": 9
+        },
+        {
+          "source_category": "domestic dog",
+          "annotations": 7
+        },
+        {
+          "source_category": "canine family",
+          "annotations": 4
+        },
+        {
+          "source_category": "bobcat",
+          "annotations": 4
+        },
+        {
+          "source_category": "wild boar",
+          "annotations": 3
+        },
+        {
+          "source_category": "kit fox",
+          "annotations": 2
+        },
+        {
+          "source_category": "ringtail",
+          "annotations": 1
+        }
+      ]
+    },
+    "spiny_lizard": {
+      "n_source_categories": 15,
+      "total_annotations": 60969,
+      "sources": [
+        {
+          "source_category": "sceloporus species",
+          "annotations": 43922
+        },
+        {
+          "source_category": "sceloporus/uta species",
+          "annotations": 4650
+        },
+        {
+          "source_category": "phrynosomatidae family",
+          "annotations": 4172
+        },
+        {
+          "source_category": "western fence lizard",
+          "annotations": 2221
+        },
+        {
+          "source_category": "common side-blotched lizard",
+          "annotations": 2144
+        },
+        {
+          "source_category": "yellow-backed spiny lizard",
+          "annotations": 1745
+        },
+        {
+          "source_category": "common sagebrush lizard",
+          "annotations": 1605
+        },
+        {
+          "source_category": "western side-blotched lizard",
+          "annotations": 360
+        },
+        {
+          "source_category": "desert horned lizard",
+          "annotations": 48
+        },
+        {
+          "source_category": "zebra-tailed lizard",
+          "annotations": 34
+        },
+        {
+          "source_category": "uta species",
+          "annotations": 27
+        },
+        {
+          "source_category": "desert spiny lizard",
+          "annotations": 23
+        },
+        {
+          "source_category": "blainville's horned lizard",
+          "annotations": 6
+        },
+        {
+          "source_category": "phrynosoma species",
+          "annotations": 6
+        },
+        {
+          "source_category": "mojave fringe-toed lizard",
+          "annotations": 6
+        }
+      ]
+    },
+    "whiptail": {
+      "n_source_categories": 3,
+      "total_annotations": 42385,
+      "sources": [
+        {
+          "source_category": "western whiptail",
+          "annotations": 38239
+        },
+        {
+          "source_category": "aspidoscelis species",
+          "annotations": 3962
+        },
+        {
+          "source_category": "belding's orange-throated whiptail",
+          "annotations": 184
+        }
+      ]
+    },
+    "snake": {
+      "n_source_categories": 35,
+      "total_annotations": 17980,
+      "sources": [
+        {
+          "source_category": "western yellow-bellied racer",
+          "annotations": 6358
+        },
+        {
+          "source_category": "thamnophis species",
+          "annotations": 3288
+        },
+        {
+          "source_category": "gophersnake",
+          "annotations": 1758
+        },
+        {
+          "source_category": "coachwhip",
+          "annotations": 1539
+        },
+        {
+          "source_category": "striped racer",
+          "annotations": 1193
+        },
+        {
+          "source_category": "california kingsnake",
+          "annotations": 955
+        },
+        {
+          "source_category": "pituophis species",
+          "annotations": 698
+        },
+        {
+          "source_category": "common gartersnake",
+          "annotations": 485
+        },
+        {
+          "source_category": "coluber species",
+          "annotations": 427
+        },
+        {
+          "source_category": "pacific gophersnake",
+          "annotations": 372
+        },
+        {
+          "source_category": "western patch-nosed snake",
+          "annotations": 129
+        },
+        {
+          "source_category": "san joaquin coachwhip",
+          "annotations": 101
+        },
+        {
+          "source_category": "mountain gartersnake",
+          "annotations": 96
+        },
+        {
+          "source_category": "valley gartersnake",
+          "annotations": 87
+        },
+        {
+          "source_category": "striped whipsnake",
+          "annotations": 73
+        },
+        {
+          "source_category": "two-striped gartersnake",
+          "annotations": 70
+        },
+        {
+          "source_category": "ring-necked snake",
+          "annotations": 54
+        },
+        {
+          "source_category": "terrestrial gartersnake",
+          "annotations": 45
+        },
+        {
+          "source_category": "baja california coachwhip",
+          "annotations": 45
+        },
+        {
+          "source_category": "santa cruz gartersnake",
+          "annotations": 44
+        },
+        {
+          "source_category": "colubridae family",
+          "annotations": 38
+        },
+        {
+          "source_category": "lampropeltis species",
+          "annotations": 34
+        },
+        {
+          "source_category": "long-nosed snake",
+          "annotations": 27
+        },
+        {
+          "source_category": "coast gartersnake",
+          "annotations": 17
+        },
+        {
+          "source_category": "sierra gartersnake",
+          "annotations": 9
+        },
+        {
+          "source_category": "giant gartersnake",
+          "annotations": 6
+        },
+        {
+          "source_category": "western threadsnake",
+          "annotations": 6
+        },
+        {
+          "source_category": "diadophis species",
+          "annotations": 6
+        },
+        {
+          "source_category": "alameda striped racer",
+          "annotations": 3
+        },
+        {
+          "source_category": "tantilla species",
+          "annotations": 3
+        },
+        {
+          "source_category": "monterey ring-necked snake",
+          "annotations": 3
+        },
+        {
+          "source_category": "coast nightsnake",
+          "annotations": 3
+        },
+        {
+          "source_category": "rosy boa",
+          "annotations": 3
+        },
+        {
+          "source_category": "glossy snake",
+          "annotations": 3
+        },
+        {
+          "source_category": "california red-sided gartersnake",
+          "annotations": 2
+        }
+      ]
+    },
+    "alligator_lizard": {
+      "n_source_categories": 6,
+      "total_annotations": 8440,
+      "sources": [
+        {
+          "source_category": "elgaria species",
+          "annotations": 6500
+        },
+        {
+          "source_category": "southern alligator lizard",
+          "annotations": 950
+        },
+        {
+          "source_category": "woodland alligator lizard",
+          "annotations": 623
+        },
+        {
+          "source_category": "northern alligator lizard",
+          "annotations": 269
+        },
+        {
+          "source_category": "forest alligator lizard",
+          "annotations": 95
+        },
+        {
+          "source_category": "shasta alligator lizard",
+          "annotations": 3
+        }
+      ]
+    },
+    "skink": {
+      "n_source_categories": 5,
+      "total_annotations": 6496,
+      "sources": [
+        {
+          "source_category": "plestiodon species",
+          "annotations": 3125
+        },
+        {
+          "source_category": "western skink",
+          "annotations": 2684
+        },
+        {
+          "source_category": "gilbert's skink",
+          "annotations": 396
+        },
+        {
+          "source_category": "skilton's skink",
+          "annotations": 288
+        },
+        {
+          "source_category": "scincidae family",
+          "annotations": 3
+        }
+      ]
+    },
+    "rattlesnake": {
+      "n_source_categories": 8,
+      "total_annotations": 1787,
+      "sources": [
+        {
+          "source_category": "crotalus species",
+          "annotations": 979
+        },
+        {
+          "source_category": "western rattlesnake",
+          "annotations": 577
+        },
+        {
+          "source_category": "southwestern speckled rattlesnake",
+          "annotations": 71
+        },
+        {
+          "source_category": "northern pacific rattlesnake",
+          "annotations": 65
+        },
+        {
+          "source_category": "mojave rattlesnake",
+          "annotations": 50
+        },
+        {
+          "source_category": "viperidae family",
+          "annotations": 21
+        },
+        {
+          "source_category": "desert sidewinder",
+          "annotations": 18
+        },
+        {
+          "source_category": "western diamondback rattlesnake",
+          "annotations": 6
+        }
+      ]
+    },
+    "lizard_other": {
+      "n_source_categories": 7,
+      "total_annotations": 657,
+      "sources": [
+        {
+          "source_category": "common desert iguana",
+          "annotations": 409
+        },
+        {
+          "source_category": "common chuckwalla",
+          "annotations": 99
+        },
+        {
+          "source_category": "long-nosed leopard lizard",
+          "annotations": 84
+        },
+        {
+          "source_category": "great basin collared lizard",
+          "annotations": 41
+        },
+        {
+          "source_category": "mediterranean gecko",
+          "annotations": 21
+        },
+        {
+          "source_category": "gekkonidae family",
+          "annotations": 2
+        },
+        {
+          "source_category": "iguana species",
+          "annotations": 1
+        }
+      ]
+    },
+    "amphibian": {
+      "n_source_categories": 12,
+      "total_annotations": 12639,
+      "sources": [
+        {
+          "source_category": "frogs",
+          "annotations": 10447
+        },
+        {
+          "source_category": "western toad",
+          "annotations": 1008
+        },
+        {
+          "source_category": "sierran treefrog",
+          "annotations": 832
+        },
+        {
+          "source_category": "hylidae species",
+          "annotations": 89
+        },
+        {
+          "source_category": "anaxyrus species",
+          "annotations": 86
+        },
+        {
+          "source_category": "amphibian",
+          "annotations": 52
+        },
+        {
+          "source_category": "taricha species",
+          "annotations": 48
+        },
+        {
+          "source_category": "true frogs",
+          "annotations": 37
+        },
+        {
+          "source_category": "american bullfrog",
+          "annotations": 18
+        },
+        {
+          "source_category": "california red-legged frog",
+          "annotations": 15
+        },
+        {
+          "source_category": "salamander species",
+          "annotations": 4
+        },
+        {
+          "source_category": "arboreal salamander",
+          "annotations": 3
+        }
+      ]
+    },
+    "bird": {
+      "n_source_categories": 48,
+      "total_annotations": 27244,
+      "sources": [
+        {
+          "source_category": "bird",
+          "annotations": 12854
+        },
+        {
+          "source_category": "troglodytidae family",
+          "annotations": 8536
+        },
+        {
+          "source_category": "bewick's wren",
+          "annotations": 2330
+        },
+        {
+          "source_category": "passerellidae family",
+          "annotations": 788
+        },
+        {
+          "source_category": "california towhee",
+          "annotations": 631
+        },
+        {
+          "source_category": "troglodytes species",
+          "annotations": 279
+        },
+        {
+          "source_category": "green-tailed towhee",
+          "annotations": 254
+        },
+        {
+          "source_category": "passeriformes order",
+          "annotations": 213
+        },
+        {
+          "source_category": "house wren",
+          "annotations": 191
+        },
+        {
+          "source_category": "mountain quail",
+          "annotations": 147
+        },
+        {
+          "source_category": "song sparrow",
+          "annotations": 146
+        },
+        {
+          "source_category": "loggerhead shrike",
+          "annotations": 98
+        },
+        {
+          "source_category": "spotted towhee",
+          "annotations": 85
+        },
+        {
+          "source_category": "galliformes order",
+          "annotations": 66
+        },
+        {
+          "source_category": "pacific wren",
+          "annotations": 59
+        },
+        {
+          "source_category": "dark-eyed junco",
+          "annotations": 57
+        },
+        {
+          "source_category": "common starling",
+          "annotations": 41
+        },
+        {
+          "source_category": "thryomanes species",
+          "annotations": 41
+        },
+        {
+          "source_category": "turdidae family",
+          "annotations": 39
+        },
+        {
+          "source_category": "melozone species",
+          "annotations": 38
+        },
+        {
+          "source_category": "passeridae family",
+          "annotations": 33
+        },
+        {
+          "source_category": "parulidae family",
+          "annotations": 32
+        },
+        {
+          "source_category": "brewer's blackbird",
+          "annotations": 31
+        },
+        {
+          "source_category": "marsh wren",
+          "annotations": 30
+        },
+        {
+          "source_category": "toxostoma species",
+          "annotations": 28
+        },
+        {
+          "source_category": "common yellowthroat",
+          "annotations": 26
+        },
+        {
+          "source_category": "northern flicker",
+          "annotations": 24
+        },
+        {
+          "source_category": "western tanager",
+          "annotations": 21
+        },
+        {
+          "source_category": "ash-throated flycatcher",
+          "annotations": 16
+        },
+        {
+          "source_category": "chipping sparrow",
+          "annotations": 12
+        },
+        {
+          "source_category": "hutton's vireo",
+          "annotations": 12
+        },
+        {
+          "source_category": "macgillivray's warbler",
+          "annotations": 9
+        },
+        {
+          "source_category": "cistothorus species",
+          "annotations": 9
+        },
+        {
+          "source_category": "wild turkey",
+          "annotations": 8
+        },
+        {
+          "source_category": "california scrub-jay",
+          "annotations": 6
+        },
+        {
+          "source_category": "california quail",
+          "annotations": 6
+        },
+        {
+          "source_category": "bullock's oriole",
+          "annotations": 6
+        },
+        {
+          "source_category": "greater roadrunner",
+          "annotations": 6
+        },
+        {
+          "source_category": "icteridae family",
+          "annotations": 6
+        },
+        {
+          "source_category": "california thrasher",
+          "annotations": 5
+        },
+        {
+          "source_category": "western meadowlark",
+          "annotations": 5
+        },
+        {
+          "source_category": "odontophoridae family",
+          "annotations": 3
+        },
+        {
+          "source_category": "house sparrow",
+          "annotations": 3
+        },
+        {
+          "source_category": "passerina species",
+          "annotations": 3
+        },
+        {
+          "source_category": "lark sparrow",
+          "annotations": 3
+        },
+        {
+          "source_category": "columbidae family",
+          "annotations": 3
+        },
+        {
+          "source_category": "canyon wren",
+          "annotations": 3
+        },
+        {
+          "source_category": "ensifera species",
+          "annotations": 2
+        }
+      ]
+    },
+    "insect": {
+      "n_source_categories": 4,
+      "total_annotations": 26605,
+      "sources": [
+        {
+          "source_category": "insect",
+          "annotations": 24128
+        },
+        {
+          "source_category": "hymenoptera order",
+          "annotations": 1624
+        },
+        {
+          "source_category": "butterflies and moths",
+          "annotations": 816
+        },
+        {
+          "source_category": "bumblebees",
+          "annotations": 37
+        }
+      ]
+    },
+    "isopod_crustacean": {
+      "n_source_categories": 2,
+      "total_annotations": 5700,
+      "sources": [
+        {
+          "source_category": "malacostracan",
+          "annotations": 5601
+        },
+        {
+          "source_category": "crayfish species",
+          "annotations": 99
+        }
+      ]
+    },
+    "spider_arachnid": {
+      "n_source_categories": 3,
+      "total_annotations": 2409,
+      "sources": [
+        {
+          "source_category": "arachnids",
+          "annotations": 1245
+        },
+        {
+          "source_category": "spider",
+          "annotations": 1153
+        },
+        {
+          "source_category": "scorpion species",
+          "annotations": 11
+        }
+      ]
+    },
+    "other_invert": {
+      "n_source_categories": 5,
+      "total_annotations": 396,
+      "sources": [
+        {
+          "source_category": "millipedes",
+          "annotations": 168
+        },
+        {
+          "source_category": "slug species",
+          "annotations": 132
+        },
+        {
+          "source_category": "gastropods",
+          "annotations": 67
+        },
+        {
+          "source_category": "centipedes",
+          "annotations": 18
+        },
+        {
+          "source_category": "snail species",
+          "annotations": 11
+        }
+      ]
+    },
+    "EXCLUDE": {
+      "n_source_categories": 7,
+      "total_annotations": 5830,
+      "sources": [
+        {
+          "source_category": "lizards and snakes",
+          "annotations": 4746,
+          "reason": "ambiguous between lizard and snake"
+        },
+        {
+          "source_category": "unknown",
+          "annotations": 736,
+          "reason": "not a coherent visual class"
+        },
+        {
+          "source_category": "animal",
+          "annotations": 248,
+          "reason": "too generic (any animal)"
+        },
+        {
+          "source_category": "reptile",
+          "annotations": 65,
+          "reason": "too generic / ambiguous lizard-vs-snake"
+        },
+        {
+          "source_category": "western pond turtle",
+          "annotations": 18,
+          "reason": "turtle (testudines); too few, not a target class"
+        },
+        {
+          "source_category": "no cv result",
+          "annotations": 9,
+          "reason": "not a real label"
+        },
+        {
+          "source_category": "pond slider",
+          "annotations": 8,
+          "reason": "turtle (testudines); too few, not a target class"
+        }
+      ]
+    }
+  },
+  "source_category_to_training_class": {
+    "blank": "blank",
+    "mouse species": "mouse",
+    "misfire": "blank",
+    "arvicolinae subfamily": "vole",
+    "rodent": "rodent_other",
+    "sceloporus species": "spiny_lizard",
+    "western whiptail": "whiptail",
+    "white-tailed antelope squirrel": "squirrel",
+    "neotoma species": "woodrat_rat",
+    "heteromyidae family": "kangaroo_rat_pocket_mouse",
+    "insect": "insect",
+    "rattus species": "woodrat_rat",
+    "sylvilagus species": "rabbit_hare",
+    "cricetidae family": "rodent_other",
+    "soricidae family": "shrew_mole",
+    "bird": "bird",
+    "woodrat or rat or mouse species": "woodrat_rat",
+    "neotamias species": "chipmunk",
+    "frogs": "amphibian",
+    "woodrat or rat species": "woodrat_rat",
+    "troglodytidae family": "bird",
+    "elgaria species": "alligator_lizard",
+    "western yellow-bellied racer": "snake",
+    "california ground squirrel": "squirrel",
+    "malacostracan": "isopod_crustacean",
+    "peromyscus species": "mouse",
+    "dipodomys species": "kangaroo_rat_pocket_mouse",
+    "lizards and snakes": "EXCLUDE",
+    "sciuridae family": "squirrel",
+    "sceloporus/uta species": "spiny_lizard",
+    "belding's ground squirrel": "squirrel",
+    "california vole": "vole",
+    "phrynosomatidae family": "spiny_lizard",
+    "aspidoscelis species": "whiptail",
+    "striped skunk": "skunk",
+    "thamnophis species": "snake",
+    "setup_pickup": "setup_pickup",
+    "plestiodon species": "skink",
+    "dusky-footed woodrat": "woodrat_rat",
+    "western skink": "skink",
+    "round-tailed ground squirrel": "squirrel",
+    "long-tailed weasel": "weasel",
+    "bewick's wren": "bird",
+    "western fence lizard": "spiny_lizard",
+    "common side-blotched lizard": "spiny_lizard",
+    "golden mantled ground squirrel": "squirrel",
+    "gophersnake": "snake",
+    "yellow-backed spiny lizard": "spiny_lizard",
+    "microtus species": "vole",
+    "lagomorpha order": "rabbit_hare",
+    "hymenoptera order": "insect",
+    "common sagebrush lizard": "spiny_lizard",
+    "rabbit and hare family": "rabbit_hare",
+    "coachwhip": "snake",
+    "brush rabbit": "rabbit_hare",
+    "arachnids": "spider_arachnid",
+    "striped racer": "snake",
+    "spider": "spider_arachnid",
+    "western toad": "amphibian",
+    "crotalus species": "rattlesnake",
+    "desert cottontail": "rabbit_hare",
+    "california kingsnake": "snake",
+    "southern alligator lizard": "alligator_lizard",
+    "virginia opossum": "opossum",
+    "sierran treefrog": "amphibian",
+    "butterflies and moths": "insect",
+    "muridae family": "rodent_other",
+    "passerellidae family": "bird",
+    "unknown": "EXCLUDE",
+    "sorex species": "shrew_mole",
+    "pituophis species": "snake",
+    "western spotted skunk": "skunk",
+    "california towhee": "bird",
+    "woodland alligator lizard": "alligator_lizard",
+    "thomomys species": "pocket_gopher",
+    "western rattlesnake": "rattlesnake",
+    "small mammal": "rodent_other",
+    "common gartersnake": "snake",
+    "ammospermophilus species": "squirrel",
+    "botta's pocket gopher": "pocket_gopher",
+    "coluber species": "snake",
+    "common desert iguana": "lizard_other",
+    "gilbert's skink": "skink",
+    "pacific gophersnake": "snake",
+    "house mouse": "mouse",
+    "western side-blotched lizard": "spiny_lizard",
+    "otospermophilus species": "squirrel",
+    "sigmodon species": "woodrat_rat",
+    "house rat": "woodrat_rat",
+    "skilton's skink": "skink",
+    "black-tailed jackrabbit": "rabbit_hare",
+    "troglodytes species": "bird",
+    "northern alligator lizard": "alligator_lizard",
+    "mammal": "mammal_other",
+    "green-tailed towhee": "bird",
+    "animal": "EXCLUDE",
+    "coyote": "mammal_other",
+    "passeriformes order": "bird",
+    "house wren": "bird",
+    "belding's orange-throated whiptail": "whiptail",
+    "lepus species": "rabbit_hare",
+    "millipedes": "other_invert",
+    "mustelinae subfamily": "weasel",
+    "mountain quail": "bird",
+    "sonoma chipmunk": "chipmunk",
+    "song sparrow": "bird",
+    "bushy-tailed woodrat": "woodrat_rat",
+    "nelson's antelope squirrel": "squirrel",
+    "long-eared chipmunk": "chipmunk",
+    "perognathinae subfamily": "kangaroo_rat_pocket_mouse",
+    "slug species": "other_invert",
+    "western patch-nosed snake": "snake",
+    "domestic cattle": "mammal_other",
+    "ord's kangaroo rat": "kangaroo_rat_pocket_mouse",
+    "san joaquin coachwhip": "snake",
+    "crayfish species": "isopod_crustacean",
+    "common chuckwalla": "lizard_other",
+    "loggerhead shrike": "bird",
+    "mountain gartersnake": "snake",
+    "forest alligator lizard": "alligator_lizard",
+    "hylidae species": "amphibian",
+    "valley gartersnake": "snake",
+    "anaxyrus species": "amphibian",
+    "spotted towhee": "bird",
+    "long-nosed leopard lizard": "lizard_other",
+    "douglas's squirrel": "squirrel",
+    "elk": "mammal_other",
+    "cactus mouse": "mouse",
+    "striped whipsnake": "snake",
+    "southwestern speckled rattlesnake": "rattlesnake",
+    "two-striped gartersnake": "snake",
+    "desert woodrat": "woodrat_rat",
+    "gastropods": "other_invert",
+    "galliformes order": "bird",
+    "northern pacific rattlesnake": "rattlesnake",
+    "reptile": "EXCLUDE",
+    "pacific wren": "bird",
+    "dark-eyed junco": "bird",
+    "sagebrush vole": "vole",
+    "ring-necked snake": "snake",
+    "amphibian": "amphibian",
+    "mojave rattlesnake": "rattlesnake",
+    "american black bear": "mammal_other",
+    "taricha species": "amphibian",
+    "desert horned lizard": "spiny_lizard",
+    "north american deermouse": "mouse",
+    "south-western jumping mouse": "mouse",
+    "terrestrial gartersnake": "snake",
+    "baja california coachwhip": "snake",
+    "santa cruz gartersnake": "snake",
+    "north american porcupine": "rodent_other",
+    "common starling": "bird",
+    "thryomanes species": "bird",
+    "great basin collared lizard": "lizard_other",
+    "brown rat": "woodrat_rat",
+    "turdidae family": "bird",
+    "melozone species": "bird",
+    "colubridae family": "snake",
+    "bumblebees": "insect",
+    "true frogs": "amphibian",
+    "lampropeltis species": "snake",
+    "zebra-tailed lizard": "spiny_lizard",
+    "shrew-mole": "shrew_mole",
+    "passeridae family": "bird",
+    "parulidae family": "bird",
+    "brewer's blackbird": "bird",
+    "mohave ground squirrel": "squirrel",
+    "marsh wren": "bird",
+    "toxostoma species": "bird",
+    "long-nosed snake": "snake",
+    "uta species": "spiny_lizard",
+    "merriam's chipmunk": "chipmunk",
+    "common yellowthroat": "bird",
+    "northern flicker": "bird",
+    "northern raccoon": "mammal_other",
+    "weasel family": "weasel",
+    "desert spiny lizard": "spiny_lizard",
+    "western tanager": "bird",
+    "mediterranean gecko": "lizard_other",
+    "viperidae family": "rattlesnake",
+    "scapanus species": "shrew_mole",
+    "american mink": "weasel",
+    "california kangaroo rat": "kangaroo_rat_pocket_mouse",
+    "american bullfrog": "amphibian",
+    "western pond turtle": "EXCLUDE",
+    "centipedes": "other_invert",
+    "desert sidewinder": "rattlesnake",
+    "sciurus species": "squirrel",
+    "coast gartersnake": "snake",
+    "domestic cat": "mammal_other",
+    "ash-throated flycatcher": "bird",
+    "california red-legged frog": "amphibian",
+    "chipping sparrow": "bird",
+    "hutton's vireo": "bird",
+    "geomyidae family": "pocket_gopher",
+    "snail species": "other_invert",
+    "scorpion species": "spider_arachnid",
+    "stoat": "weasel",
+    "muskrat": "rodent_other",
+    "sierra gartersnake": "snake",
+    "grey fox": "mammal_other",
+    "no cv result": "EXCLUDE",
+    "macgillivray's warbler": "bird",
+    "cistothorus species": "bird",
+    "pond slider": "EXCLUDE",
+    "wild turkey": "bird",
+    "domestic dog": "mammal_other",
+    "northern grasshopper mouse": "mouse",
+    "chaetodipus species": "kangaroo_rat_pocket_mouse",
+    "california scrub-jay": "bird",
+    "california quail": "bird",
+    "bullock's oriole": "bird",
+    "giant gartersnake": "snake",
+    "blainville's horned lizard": "spiny_lizard",
+    "western threadsnake": "snake",
+    "phrynosoma species": "spiny_lizard",
+    "diadophis species": "snake",
+    "greater roadrunner": "bird",
+    "icteridae family": "bird",
+    "western diamondback rattlesnake": "rattlesnake",
+    "mojave fringe-toed lizard": "spiny_lizard",
+    "california thrasher": "bird",
+    "yellow-cheeked chipmunk": "chipmunk",
+    "western meadowlark": "bird",
+    "salamander species": "amphibian",
+    "canine family": "mammal_other",
+    "bobcat": "mammal_other",
+    "reithrodontomys species": "mouse",
+    "alameda striped racer": "snake",
+    "odontophoridae family": "bird",
+    "house sparrow": "bird",
+    "passerina species": "bird",
+    "arboreal salamander": "amphibian",
+    "lark sparrow": "bird",
+    "tantilla species": "snake",
+    "weasel species": "weasel",
+    "monterey ring-necked snake": "snake",
+    "broad-footed mole": "shrew_mole",
+    "shasta alligator lizard": "alligator_lizard",
+    "columbidae family": "bird",
+    "scincidae family": "skink",
+    "coast nightsnake": "snake",
+    "rosy boa": "snake",
+    "western gray squirrel": "squirrel",
+    "wild boar": "mammal_other",
+    "canyon wren": "bird",
+    "glossy snake": "snake",
+    "california red-sided gartersnake": "snake",
+    "ensifera species": "bird",
+    "eulipotyphla order": "shrew_mole",
+    "gekkonidae family": "lizard_other",
+    "kit fox": "mammal_other",
+    "ringtail": "mammal_other",
+    "skunk family": "skunk",
+    "mephitis species": "skunk",
+    "iguana species": "lizard_other"
+  },
+  "camera_split_summary": {
+    "n_cameras": 701,
+    "n_train_cameras": 553,
+    "n_val_cameras": 148
+  },
+  "camera_split": {
+    "2002875_sa-agca1-2023": "train",
+    "2002875_sa-agca1-2025": "train",
+    "2002875_sa-agca2-2023": "train",
+    "2002875_sa-agca2-2025": "train",
+    "2002875_sa-agca3-2023": "train",
+    "2002875_sa-agca3-2025": "train",
+    "2002875_sa-agca4-2023": "train",
+    "2002875_sa-albs1-2023": "train",
+    "2002875_sa-albs1-2025": "train",
+    "2002875_sa-albs2-2023": "train",
+    "2002875_sa-albs2-2025": "train",
+    "2002875_sa-albs3-2023": "train",
+    "2002875_sa-albs3-2025": "train",
+    "2002875_sa-albs4-2023": "train",
+    "2002875_sa-albs4-2025": "train",
+    "2002875_sa-ardh1-2025": "train",
+    "2002875_sa-ardh2-2023": "train",
+    "2002875_sa-ardh3-2023": "train",
+    "2002875_sa-ardh3-2025": "train",
+    "2002875_sa-ardh4-2023": "train",
+    "2002875_sa-baec1-2025": "train",
+    "2002875_sa-baec3-2025": "train",
+    "2002875_sa-bear2-2025": "val",
+    "2002875_sa-bear3-2025": "train",
+    "2002875_sa-bear4-2025": "train",
+    "2002875_sa-bmut2-2025": "val",
+    "2002875_sa-bmut3-2025": "val",
+    "2002875_sa-busn1-2024": "train",
+    "2002875_sa-busn2-2024": "train",
+    "2002875_sa-busn3-2024": "train",
+    "2002875_sa-busn4-2024": "train",
+    "2002875_sa-camk2-2025": "train",
+    "2002875_sa-camk3-2025": "train",
+    "2002875_sa-camk4-2025": "val",
+    "2002875_sa-ccec1-2025": "train",
+    "2002875_sa-ccec3-2025": "train",
+    "2002875_sa-clfe1-2024": "train",
+    "2002875_sa-clfe2-2024": "train",
+    "2002875_sa-clfe3-2024": "train",
+    "2002875_sa-clfe4-2024": "train",
+    "2002875_sa-cole1-2024": "val",
+    "2002875_sa-cole2-2024": "train",
+    "2002875_sa-cole3-2024": "train",
+    "2002875_sa-cole4-2024": "val",
+    "2002875_sa-cowo1-2024": "val",
+    "2002875_sa-cowo2-2024": "train",
+    "2002875_sa-cowo3-2024": "train",
+    "2002875_sa-cowo4-2024": "train",
+    "2002875_sa-davi1-2024": "train",
+    "2002875_sa-davi2-2024": "val",
+    "2002875_sa-davi3-2024": "val",
+    "2002875_sa-davi4-2024": "train",
+    "2002875_sa-down1-2024": "train",
+    "2002875_sa-down2-2024": "val",
+    "2002875_sa-down3-2024": "train",
+    "2002875_sa-down4-2024": "train",
+    "2002875_sa-drpu1-2024": "train",
+    "2002875_sa-drpu2-2024": "train",
+    "2002875_sa-drpu3-2024": "train",
+    "2002875_sa-drpu4-2024": "train",
+    "2002875_sa-edsa1-2023": "train",
+    "2002875_sa-edsa2-2023": "train",
+    "2002875_sa-edsa2-2025": "train",
+    "2002875_sa-edsa4-2023": "val",
+    "2002875_sa-edsa4b-2025": "train",
+    "2002875_sa-eldo1-2024": "train",
+    "2002875_sa-eldo2-2024": "train",
+    "2002875_sa-eldo3-2024": "val",
+    "2002875_sa-eldo4-2024": "train",
+    "2002875_sa-fore1-2024": "val",
+    "2002875_sa-fore2-2024": "val",
+    "2002875_sa-fore3-2024": "train",
+    "2002875_sa-fore4-2024": "val",
+    "2002875_sa-grho1-2024": "train",
+    "2002875_sa-grho2-2024": "train",
+    "2002875_sa-grho3-2024": "train",
+    "2002875_sa-grho4-2024": "train",
+    "2002875_sa-grnc1-2024": "train",
+    "2002875_sa-grnc2-2024": "train",
+    "2002875_sa-grnc3-2024": "val",
+    "2002875_sa-grnc4-2024": "train",
+    "2002875_sa-hous2-2023": "train",
+    "2002875_sa-hous2-2025": "train",
+    "2002875_sa-hous3-2023": "train",
+    "2002875_sa-hous3-2025": "train",
+    "2002875_sa-hous4-2023": "val",
+    "2002875_sa-hsar3-2025": "val",
+    "2002875_sa-husy1-2024": "train",
+    "2002875_sa-husy2-2024": "train",
+    "2002875_sa-husy3-2024": "train",
+    "2002875_sa-husy4-2024": "train",
+    "2002875_sa-indi2b-2025": "train",
+    "2002875_sa-indn2-2025": "train",
+    "2002875_sa-indn4-2025": "train",
+    "2002875_sa-ivnc1-2024": "val",
+    "2002875_sa-ivnc2-2024": "train",
+    "2002875_sa-ivnc3-2024": "train",
+    "2002875_sa-ivnc4-2024": "train",
+    "2002875_sa-jema4-2025": "train",
+    "2002875_sa-kcsj1-2025": "train",
+    "2002875_sa-kcsj2-2025": "train",
+    "2002875_sa-kels1-2024": "train",
+    "2002875_sa-kels2-2024": "train",
+    "2002875_sa-kels3-2024": "train",
+    "2002875_sa-kels4-2024": "train",
+    "2002875_sa-llag1-2024": "train",
+    "2002875_sa-llag2-2024": "train",
+    "2002875_sa-llag3-2024": "train",
+    "2002875_sa-llag4-2024": "train",
+    "2002875_sa-lldr1-2024": "val",
+    "2002875_sa-lldr2-2024": "train",
+    "2002875_sa-lldr3-2024": "train",
+    "2002875_sa-lldr4-2024": "val",
+    "2002875_sa-llsr1-2024": "train",
+    "2002875_sa-llsr2-2024": "train",
+    "2002875_sa-llsr3-2024": "train",
+    "2002875_sa-llsr4-2024": "val",
+    "2002875_sa-loga1-2024": "train",
+    "2002875_sa-loga2-2024": "val",
+    "2002875_sa-loga3-2024": "train",
+    "2002875_sa-loga4-2024": "train",
+    "2002875_sa-lpes1-2023": "train",
+    "2002875_sa-lpes1-2025": "train",
+    "2002875_sa-lpes2-2023": "train",
+    "2002875_sa-lpes2-2025": "val",
+    "2002875_sa-lpes3-2023": "train",
+    "2002875_sa-lpes3-2025": "train",
+    "2002875_sa-lpes4-2023": "train",
+    "2002875_sa-lrsj1-2025": "train",
+    "2002875_sa-lrsj3-2025": "train",
+    "2002875_sa-lrsj4-2025": "val",
+    "2002875_sa-mabe1-2024": "train",
+    "2002875_sa-mabe2-2024": "train",
+    "2002875_sa-mabe3-2024": "train",
+    "2002875_sa-mabe4-2024": "val",
+    "2002875_sa-mcfc1-2024": "train",
+    "2002875_sa-mcfc2-2024": "train",
+    "2002875_sa-mcfc3-2024": "train",
+    "2002875_sa-mcfc4-2024": "train",
+    "2002875_sa-mcpu1-2023": "val",
+    "2002875_sa-mcpu1-2025": "val",
+    "2002875_sa-mcpu2-2023": "val",
+    "2002875_sa-mcpu2-2025": "train",
+    "2002875_sa-mcpu3-2023": "train",
+    "2002875_sa-mcpu3-2025": "train",
+    "2002875_sa-mcpu4-2023": "train",
+    "2002875_sa-mcpu4-2025": "train",
+    "2002875_sa-mill1-2023": "train",
+    "2002875_sa-mill1-2025": "val",
+    "2002875_sa-mill2-2023": "train",
+    "2002875_sa-mill2b-2025": "train",
+    "2002875_sa-mill3-2023": "train",
+    "2002875_sa-mill3-2025": "train",
+    "2002875_sa-mill4-2023": "train",
+    "2002875_sa-mill4-2025": "val",
+    "2002875_sa-moho1-2023": "val",
+    "2002875_sa-moho2-2023": "val",
+    "2002875_sa-moho3-2023": "train",
+    "2002875_sa-moho4-2023": "train",
+    "2002875_sa-most2-2025": "val",
+    "2002875_sa-nfnv1-2023": "val",
+    "2002875_sa-nfnv2-2023": "train",
+    "2002875_sa-nfnv3-2023": "train",
+    "2002875_sa-nfnv3-2025": "train",
+    "2002875_sa-nfnv4-2023": "val",
+    "2002875_sa-nfnv4c-2025": "train",
+    "2002875_sa-onei1-2025": "train",
+    "2002875_sa-onei2-2025": "val",
+    "2002875_sa-onei3-2025": "val",
+    "2002875_sa-onei4-2025": "train",
+    "2002875_sa-otte1-2025": "val",
+    "2002875_sa-otte3-2025": "val",
+    "2002875_sa-ovru1-2024": "train",
+    "2002875_sa-ovru2-2024": "train",
+    "2002875_sa-ovru3-2024": "val",
+    "2002875_sa-ovru4-2024": "val",
+    "2002875_sa-rptu1-2025": "train",
+    "2002875_sa-rptu2-2025": "train",
+    "2002875_sa-rptu3-2025": "train",
+    "2002875_sa-rptu4-2025": "train",
+    "2002875_sa-rswo1-2024": "train",
+    "2002875_sa-rswo2-2024": "train",
+    "2002875_sa-rswo3-2024": "train",
+    "2002875_sa-rswo4-2024": "train",
+    "2002875_sa-rw01-2022": "train",
+    "2002875_sa-rw02-2022": "train",
+    "2002875_sa-rw02-2023": "train",
+    "2002875_sa-rw02-2024": "val",
+    "2002875_sa-rw03-2022": "train",
+    "2002875_sa-rw03-2023": "train",
+    "2002875_sa-rw04-2022": "train",
+    "2002875_sa-rw04-2023": "train",
+    "2002875_sa-rw04-2024": "train",
+    "2002875_sa-rw05-2022": "val",
+    "2002875_sa-rw07-2022": "train",
+    "2002875_sa-rw07-2023": "val",
+    "2002875_sa-rw08-2022": "train",
+    "2002875_sa-rw08-2023": "train",
+    "2002875_sa-rw09-2022": "train",
+    "2002875_sa-rw09-2023": "train",
+    "2002875_sa-rw10-2022": "train",
+    "2002875_sa-rw10-2023": "val",
+    "2002875_sa-rw12-2022": "train",
+    "2002875_sa-rw12-2023": "train",
+    "2002875_sa-rw13-2022": "train",
+    "2002875_sa-rw13-2023": "train",
+    "2002875_sa-rw14-2022": "train",
+    "2002875_sa-rw15-2022": "train",
+    "2002875_sa-rw16-2022": "train",
+    "2002875_sa-rw17-2022": "train",
+    "2002875_sa-rw17-2023": "val",
+    "2002875_sa-rw17-2024": "train",
+    "2002875_sa-rw18-2022": "train",
+    "2002875_sa-rw18-2023": "train",
+    "2002875_sa-rw18-2024": "train",
+    "2002875_sa-rw19-2022": "train",
+    "2002875_sa-rw19-2023": "train",
+    "2002875_sa-rw20-2022": "train",
+    "2002875_sa-rw20-2023": "train",
+    "2002875_sa-rw21-2022": "train",
+    "2002875_sa-sado1-2025": "train",
+    "2002875_sa-sado4-2025": "val",
+    "2002875_sa-sahe1-2024": "train",
+    "2002875_sa-sahe2-2024": "val",
+    "2002875_sa-sahe3-2024": "train",
+    "2002875_sa-sahe4-2024": "train",
+    "2002875_sa-sals1-2024": "train",
+    "2002875_sa-sals2-2024": "val",
+    "2002875_sa-sals3-2024": "train",
+    "2002875_sa-sals4-2024": "val",
+    "2002875_sa-sata1-2024": "train",
+    "2002875_sa-sata2-2024": "train",
+    "2002875_sa-sata3-2024": "train",
+    "2002875_sa-sdwi1-2024": "train",
+    "2002875_sa-sdwi2-2024": "train",
+    "2002875_sa-sdwi4-2024": "train",
+    "2002875_sa-sfsb1-2023": "train",
+    "2002875_sa-sfsb2-2023": "train",
+    "2002875_sa-sfsb3-2023": "train",
+    "2002875_sa-sfsb4-2023": "train",
+    "2002875_sa-sfsb4-2025": "train",
+    "2002875_sa-shru1-2023": "train",
+    "2002875_sa-shru2-2023": "train",
+    "2002875_sa-shru2-2025": "val",
+    "2002875_sa-shru3-2023": "train",
+    "2002875_sa-shru4-2023": "train",
+    "2002875_sa-shru4-2025": "val",
+    "2002875_sa-shsy1-2024": "train",
+    "2002875_sa-shsy2-2024": "val",
+    "2002875_sa-shsy3-2024": "val",
+    "2002875_sa-shsy4-2024": "val",
+    "2002875_sa-smpi1-2024": "train",
+    "2002875_sa-smpi2-2024": "val",
+    "2002875_sa-smpi3-2024": "train",
+    "2002875_sa-smpi4-2024": "train",
+    "2002875_sa-spmc2-2025": "val",
+    "2002875_sa-ssco1-2024": "train",
+    "2002875_sa-ssco2-2024": "train",
+    "2002875_sa-ssco3-2024": "train",
+    "2002875_sa-ssco4-2024": "train",
+    "2002875_sa-stev1-2023": "train",
+    "2002875_sa-stev2-2023": "train",
+    "2002875_sa-stev2-2025": "train",
+    "2002875_sa-stev3-2023": "train",
+    "2002875_sa-stev4-2023": "train",
+    "2002875_sa-stev4-2025": "train",
+    "2002875_sa-tfsp1-2024": "train",
+    "2002875_sa-tfsp2-2024": "train",
+    "2002875_sa-tfsp3-2024": "train",
+    "2002875_sa-tfsp4-2024": "val",
+    "2002875_sa-thur1-2024": "train",
+    "2002875_sa-thur2-2024": "val",
+    "2002875_sa-thur3-2024": "train",
+    "2002875_sa-thur4-2024": "train",
+    "2002875_sa-trsc1-2023": "train",
+    "2002875_sa-trsc1-2025": "train",
+    "2002875_sa-trsc2-2023": "train",
+    "2002875_sa-trsc3-2023": "train",
+    "2002875_sa-trsc4-2023": "train",
+    "2002875_sa-turl1-2025": "val",
+    "2002875_sa-turl2-2025": "val",
+    "2002875_sa-turl3-2025": "val",
+    "2002875_sa-unap1-2023": "train",
+    "2002875_sa-unap2-2023": "train",
+    "2002875_sa-unap3-2023": "train",
+    "2002875_sa-unap4-2023": "train",
+    "2002875_sa-unav1-2023": "train",
+    "2002875_sa-unav1-2025": "val",
+    "2002875_sa-unav2-2023": "val",
+    "2002875_sa-unav3-2023": "val",
+    "2002875_sa-unav4-2023": "train",
+    "2002875_sa-uold1-2023": "train",
+    "2002875_sa-uold1-2025": "train",
+    "2002875_sa-uold2-2023": "val",
+    "2002875_sa-uold2-2025": "train",
+    "2002875_sa-uold3-2023": "train",
+    "2002875_sa-uold3-2025": "train",
+    "2002875_sa-uold4-2023": "train",
+    "2002875_sa-uold4-2025": "train",
+    "2002875_sa-upny1-2025": "train",
+    "2002875_sa-usco1-2024": "val",
+    "2002875_sa-usco2-2024": "train",
+    "2002875_sa-usco3-2024": "val",
+    "2002875_sa-usco4-2024": "train",
+    "2002875_sa-usro1-2023": "train",
+    "2002875_sa-usro1-2025": "train",
+    "2002875_sa-usro2-2023": "train",
+    "2002875_sa-usro2-2025": "train",
+    "2002875_sa-usro3-2023": "val",
+    "2002875_sa-usro4-2023": "val",
+    "2002875_sa-waau1-2024": "train",
+    "2002875_sa-waau2-2024": "train",
+    "2002875_sa-waau3-2024": "train",
+    "2002875_sa-waau4-2024": "train",
+    "2002875_sa-welt1-2024": "train",
+    "2002875_sa-welt2-2024": "train",
+    "2002875_sa-welt3-2024": "train",
+    "2002875_sa-welt4-2024": "val",
+    "2002875_sa-wico1-2024": "train",
+    "2002875_sa-wico2-2024": "train",
+    "2002875_sa-wico3-2024": "train",
+    "2002875_sa-wico4-2024": "train",
+    "2002875_sa-womy1-2024": "train",
+    "2002875_sa-womy2-2024": "val",
+    "2002875_sa-womy3-2024": "val",
+    "2002875_sa-womy4-2024": "train",
+    "2002875_sa-zasl1-2024": "val",
+    "2002875_sa-zasl2-2024": "train",
+    "2002875_sa-zasl3-2024": "train",
+    "2002875_sa-zasl4-2024": "train",
+    "2002875_sitea1-hp": "train",
+    "2002875_sitea2-hp": "val",
+    "2002875_sited1-hp": "train",
+    "2002875_sited2-hp": "train",
+    "2002875_sitef1-hp": "train",
+    "2002875_sitef2-hp": "train",
+    "2002875_siteh1-hp": "train",
+    "2002875_siteh2-hp": "train",
+    "2002875_sitei1-hp": "train",
+    "2002875_sitei2-hp": "train",
+    "2002875_sitej1-hp": "train",
+    "2002875_sitej2-hp": "train",
+    "2002875_sitek1-hp": "train",
+    "2002875_sitek2-hp": "train",
+    "2002875_sitel1-hp": "val",
+    "2002875_sitel2-hp": "val",
+    "2002875_siteo1.1-hp": "train",
+    "2002875_siteo1.2-hp": "train",
+    "2002875_siteo2.1-hp": "train",
+    "2002875_siteo2.2-hp": "train",
+    "2004886_sa-acwa1-2023": "train",
+    "2004886_sa-acwa1-2024": "train",
+    "2004886_sa-acwa2-2023": "train",
+    "2004886_sa-acwa2-2024": "val",
+    "2004886_sa-acwa3-2023": "train",
+    "2004886_sa-acwa3-2024": "val",
+    "2004886_sa-acwa4-2023": "val",
+    "2004886_sa-acwa4-2024": "train",
+    "2004886_sa-bmer1-2023": "train",
+    "2004886_sa-bmer1-2024": "train",
+    "2004886_sa-bmer2-2023": "val",
+    "2004886_sa-bmer2-2024": "train",
+    "2004886_sa-bmer3-2023": "val",
+    "2004886_sa-bmer3-2024": "train",
+    "2004886_sa-bmer4-2023": "train",
+    "2004886_sa-bmer4-2024": "train",
+    "2004886_sa-bswa1-2024": "val",
+    "2004886_sa-bswa3-2024": "train",
+    "2004886_sa-bswa4-2024": "train",
+    "2004886_sa-btmer1-2024": "val",
+    "2004886_sa-btmer2-2024": "val",
+    "2004886_sa-btmer3-2024": "train",
+    "2004886_sa-btmer4-2024": "train",
+    "2004886_sa-cber1-2023": "train",
+    "2004886_sa-cber1-2024": "train",
+    "2004886_sa-cber2-2023": "train",
+    "2004886_sa-cber2-2024": "val",
+    "2004886_sa-cber3-2023": "train",
+    "2004886_sa-cber3b-2024": "train",
+    "2004886_sa-cber4-2023": "train",
+    "2004886_sa-cber4-2024": "train",
+    "2004886_sa-cber4-2025": "train",
+    "2004886_sa-ccwa1-2023": "train",
+    "2004886_sa-ccwa1-2024": "train",
+    "2004886_sa-ccwa2-2023": "train",
+    "2004886_sa-ccwa2-2024": "val",
+    "2004886_sa-ccwa3-2023": "train",
+    "2004886_sa-ccwa3-2024": "train",
+    "2004886_sa-ccwa4-2023": "train",
+    "2004886_sa-ccwa4-2024": "val",
+    "2004886_sa-cdloer1-2024": "train",
+    "2004886_sa-cdloer2-2024": "train",
+    "2004886_sa-cdloer3-2024": "train",
+    "2004886_sa-cdloer4-2024": "train",
+    "2004886_sa-cper1-2023": "train",
+    "2004886_sa-cper1-2024": "train",
+    "2004886_sa-cper2-2023": "train",
+    "2004886_sa-cper2-2024": "train",
+    "2004886_sa-cper3-2023": "train",
+    "2004886_sa-cper3-2024": "train",
+    "2004886_sa-cper3-2025": "train",
+    "2004886_sa-cper4-2023": "val",
+    "2004886_sa-cper4-2024": "train",
+    "2004886_sa-cper4-2025": "train",
+    "2004886_sa-crer1-2023": "train",
+    "2004886_sa-crer1-2024": "train",
+    "2004886_sa-crer1-2025": "train",
+    "2004886_sa-crer2-2023": "train",
+    "2004886_sa-crer2-2024": "train",
+    "2004886_sa-crer2-2025": "val",
+    "2004886_sa-crer3-2024": "train",
+    "2004886_sa-crer4-2024": "val",
+    "2004886_sa-crer4-2025": "train",
+    "2004886_sa-cser1-2023": "train",
+    "2004886_sa-cser1-2024": "train",
+    "2004886_sa-cser2-2023": "train",
+    "2004886_sa-cser2-2024": "val",
+    "2004886_sa-cser3-2023": "train",
+    "2004886_sa-cser3-2024": "train",
+    "2004886_sa-cser4-2023": "train",
+    "2004886_sa-cser4-2024": "train",
+    "2004886_sa-csver1-2023": "val",
+    "2004886_sa-csver1-2024": "train",
+    "2004886_sa-csver2-2023": "train",
+    "2004886_sa-csver2-2024": "train",
+    "2004886_sa-csver3-2023": "val",
+    "2004886_sa-csver3-2024": "train",
+    "2004886_sa-csver4-2023": "train",
+    "2004886_sa-csver4-2024": "train",
+    "2004886_sa-esnerr1-2023": "train",
+    "2004886_sa-esnerr1-2024": "train",
+    "2004886_sa-esnerr1-2025": "train",
+    "2004886_sa-esnerr2-2023": "val",
+    "2004886_sa-esnerr2-2024": "train",
+    "2004886_sa-esnerr2-2025": "val",
+    "2004886_sa-esnerr3-2023": "train",
+    "2004886_sa-esnerr3-2024": "train",
+    "2004886_sa-esnerr3-2025": "val",
+    "2004886_sa-esnerr4-2023": "val",
+    "2004886_sa-esnerr4-2024": "val",
+    "2004886_sa-esnerr4-2025": "train",
+    "2004886_sa-fcwa1-2024": "val",
+    "2004886_sa-fcwa2-2024": "train",
+    "2004886_sa-fcwa3-2024": "train",
+    "2004886_sa-fcwa4-2024": "val",
+    "2004886_sa-fser1-2023": "train",
+    "2004886_sa-fser1-2024": "train",
+    "2004886_sa-fser2-2023": "val",
+    "2004886_sa-fser2-2024": "train",
+    "2004886_sa-fser3-2023": "train",
+    "2004886_sa-fser3-2024": "train",
+    "2004886_sa-fser4-2023": "train",
+    "2004886_sa-fser4-2024": "train",
+    "2004886_sa-gbs1-2023": "val",
+    "2004886_sa-gbs1-2024": "train",
+    "2004886_sa-gbs2-2023": "train",
+    "2004886_sa-gbs2-2024": "train",
+    "2004886_sa-gbs3-2023": "train",
+    "2004886_sa-gbs3-2024": "train",
+    "2004886_sa-gbs4-2023": "train",
+    "2004886_sa-gbs4-2024": "train",
+    "2004886_sa-hjwa1-2023": "train",
+    "2004886_sa-hjwa1-2024": "train",
+    "2004886_sa-hjwa2-2023": "train",
+    "2004886_sa-hjwa2-2024": "train",
+    "2004886_sa-hjwa3-2023": "train",
+    "2004886_sa-hjwa3-2024": "train",
+    "2004886_sa-hjwa4-2023": "train",
+    "2004886_sa-hjwa4-2024": "train",
+    "2004886_sa-hlwa1-2024": "train",
+    "2004886_sa-hlwa2-2024": "train",
+    "2004886_sa-hlwa2-2025": "train",
+    "2004886_sa-hlwa3-2024": "train",
+    "2004886_sa-hlwa4-2024": "train",
+    "2004886_sa-hvwa1-2024": "train",
+    "2004886_sa-hvwa2-2024": "train",
+    "2004886_sa-hvwa3-2024": "train",
+    "2004886_sa-hvwa4-2024": "val",
+    "2004886_sa-ijser1-2023": "val",
+    "2004886_sa-ijser1b-2024": "train",
+    "2004886_sa-ijser2-2023": "train",
+    "2004886_sa-ijser2-2024": "train",
+    "2004886_sa-ijser3-2023": "val",
+    "2004886_sa-ijser3-2024": "train",
+    "2004886_sa-ijser4-2023": "train",
+    "2004886_sa-ijser4-2024": "train",
+    "2004886_sa-iwa1-2023": "train",
+    "2004886_sa-iwa1b-2024": "val",
+    "2004886_sa-iwa2-2023": "train",
+    "2004886_sa-iwa2-2024": "train",
+    "2004886_sa-iwa3-2023": "train",
+    "2004886_sa-iwa3-2024": "train",
+    "2004886_sa-iwa4-2023": "train",
+    "2004886_sa-iwa4-2024": "train",
+    "2004886_sa-lewa1-2023": "train",
+    "2004886_sa-lewa1-2024": "train",
+    "2004886_sa-lewa2-2023": "val",
+    "2004886_sa-lewa2-2024": "train",
+    "2004886_sa-lewa3-2023": "train",
+    "2004886_sa-lewa3-2024": "train",
+    "2004886_sa-lewa4-2023": "train",
+    "2004886_sa-lewa4-2024": "train",
+    "2004886_sa-mcmp1-2023": "val",
+    "2004886_sa-mcmp1-2024": "train",
+    "2004886_sa-mcmp2-2023": "train",
+    "2004886_sa-mcmp2b-2024": "train",
+    "2004886_sa-mcmp3-2023": "train",
+    "2004886_sa-mcmp3-2024": "train",
+    "2004886_sa-mcmp4-2023": "train",
+    "2004886_sa-mcmp4-2024": "train",
+    "2004886_sa-mmwa1-2024": "val",
+    "2004886_sa-mmwa2-2024": "train",
+    "2004886_sa-mmwa3-2024": "val",
+    "2004886_sa-mmwa4-2024": "train",
+    "2004886_sa-ngwa1-2023": "train",
+    "2004886_sa-ngwa1-2024": "train",
+    "2004886_sa-ngwa2-2023": "train",
+    "2004886_sa-ngwa2-2024": "val",
+    "2004886_sa-ngwa3-2023": "train",
+    "2004886_sa-ngwa3-2024": "train",
+    "2004886_sa-ngwa4-2023": "val",
+    "2004886_sa-ngwa4-2024": "train",
+    "2004886_sa-nswa1-2022": "train",
+    "2004886_sa-nswa1-2023": "train",
+    "2004886_sa-nswa1-2024": "train",
+    "2004886_sa-nswa2-2022": "val",
+    "2004886_sa-nswa2-2023": "train",
+    "2004886_sa-nswa2-2024": "train",
+    "2004886_sa-nswa3-2022": "train",
+    "2004886_sa-nswa3-2024": "train",
+    "2004886_sa-nswa4-2022": "val",
+    "2004886_sa-nswa4-2023": "train",
+    "2004886_sa-nswa4-2024": "train",
+    "2004886_sa-pmwa1-2023": "train",
+    "2004886_sa-pmwa1-2024": "val",
+    "2004886_sa-pmwa2-2023": "train",
+    "2004886_sa-pmwa2-2024": "train",
+    "2004886_sa-pmwa3-2023": "train",
+    "2004886_sa-pmwa3-2024": "train",
+    "2004886_sa-pmwa4-2023": "train",
+    "2004886_sa-pmwa4-2024": "train",
+    "2004886_sa-pver1-2024": "train",
+    "2004886_sa-pver1-2025": "train",
+    "2004886_sa-pver2-2024": "train",
+    "2004886_sa-pver3-2024": "train",
+    "2004886_sa-pver3-2025": "train",
+    "2004886_sa-pver4-2024": "train",
+    "2004886_sa-pver4-2025": "train",
+    "2004886_sa-rjer1-2023": "train",
+    "2004886_sa-rjer1-2024": "train",
+    "2004886_sa-rjer2-2023": "train",
+    "2004886_sa-rjer2-2024": "val",
+    "2004886_sa-rjer3-2023": "train",
+    "2004886_sa-rjer3-2024": "train",
+    "2004886_sa-rjer4-2023": "train",
+    "2004886_sa-rjer4-2024": "train",
+    "2004886_sa-seler1-2023": "train",
+    "2004886_sa-seler1-2024": "train",
+    "2004886_sa-seler2-2023": "train",
+    "2004886_sa-seler2-2024": "train",
+    "2004886_sa-seler3-2023": "train",
+    "2004886_sa-seler3-2024": "train",
+    "2004886_sa-seler4-2023": "train",
+    "2004886_sa-seler4-2024": "train",
+    "2004886_sa-sfcer1-2023": "train",
+    "2004886_sa-sfcer1-2024": "val",
+    "2004886_sa-sfcer2-2023": "val",
+    "2004886_sa-sfcer2b-2024": "train",
+    "2004886_sa-sfcer3-2023": "val",
+    "2004886_sa-sfcer3-2024": "train",
+    "2004886_sa-sfcer4-2023": "val",
+    "2004886_sa-sfcer4-2024": "train",
+    "2004886_sa-sfvwa1-2023": "train",
+    "2004886_sa-sfvwa1-2024": "val",
+    "2004886_sa-sfvwa2-2023": "train",
+    "2004886_sa-sfvwa2-2024": "train",
+    "2004886_sa-sfvwa3-2023": "train",
+    "2004886_sa-sfvwa3-2024": "train",
+    "2004886_sa-sfvwa4-2023": "val",
+    "2004886_sa-sfvwa4-2024": "train",
+    "2004886_sa-sper1-2023": "train",
+    "2004886_sa-sper1-2024": "train",
+    "2004886_sa-sper2-2023": "train",
+    "2004886_sa-sper2-2024": "train",
+    "2004886_sa-sper3-2023": "val",
+    "2004886_sa-sper3-2024": "val",
+    "2004886_sa-sper3-2025": "val",
+    "2004886_sa-sper4-2023": "train",
+    "2004886_sa-sper4-2024": "train",
+    "2004886_sa-ster1-2023": "train",
+    "2004886_sa-ster1-2024": "train",
+    "2004886_sa-ster2-2023": "train",
+    "2004886_sa-ster2-2024": "train",
+    "2004886_sa-ster3-2023": "train",
+    "2004886_sa-ster3-2024": "train",
+    "2004886_sa-ster4-2024": "train",
+    "2004886_sa-svwa1-2023": "train",
+    "2004886_sa-svwa1-2024": "train",
+    "2004886_sa-svwa2-2023": "train",
+    "2004886_sa-svwa2-2024": "train",
+    "2004886_sa-svwa3-2023": "train",
+    "2004886_sa-svwa3-2024": "train",
+    "2004886_sa-svwa4-2023": "train",
+    "2004886_sa-svwa4-2024": "val",
+    "2004886_sa-swa1-2024": "train",
+    "2004886_sa-swa2-2024": "val",
+    "2004886_sa-swa3-2024": "train",
+    "2004886_sa-swa4-2024": "train",
+    "2004886_sa-ubbwa1-2023": "val",
+    "2004886_sa-ubbwa1-2024": "train",
+    "2004886_sa-ubbwa1-2025": "train",
+    "2004886_sa-ubbwa2-2023": "train",
+    "2004886_sa-ubbwa2-2024": "train",
+    "2004886_sa-ubbwa2-2025": "train",
+    "2004886_sa-ubbwa3-2023": "train",
+    "2004886_sa-ubbwa3-2024": "train",
+    "2004886_sa-ubbwa3-2025": "train",
+    "2004886_sa-ubbwa4-2023": "val",
+    "2004886_sa-ubbwa4-2024": "train",
+    "2004886_sa-ubbwa4-2025": "val",
+    "2004886_sa-unber1-2023": "train",
+    "2004886_sa-unber1-2024": "train",
+    "2004886_sa-unber2-2023": "train",
+    "2004886_sa-unber2-2024": "train",
+    "2004886_sa-unber3-2023": "train",
+    "2004886_sa-unber3-2024": "train",
+    "2004886_sa-unber4-2023": "train",
+    "2004886_sa-unber4-2024": "val",
+    "2004886_sa-wser1-2023": "train",
+    "2004886_sa-wser1-2024": "train",
+    "2004886_sa-wser2-2023": "train",
+    "2004886_sa-wser2-2024": "train",
+    "2004886_sa-wser3-2023": "train",
+    "2004886_sa-wser3-2024": "train",
+    "2004886_sa-wser4-2023": "train",
+    "2004886_sa-wser4-2024": "train",
+    "2006663_sa-29050a": "val",
+    "2006663_sa-29050b": "val",
+    "2006663_sa-29263a": "train",
+    "2006663_sa-29263b": "train",
+    "2006663_sa-29267a": "train",
+    "2006663_sa-29267b": "train",
+    "2006663_sa-29431a": "train",
+    "2006663_sa-29638a": "train",
+    "2006663_sa-29651a": "train",
+    "2006663_sa-29651b": "train",
+    "2006663_sa-29964a": "train",
+    "2006663_sa-30103b": "train",
+    "2006663_sa-30162a": "train",
+    "2006663_sa-30175a": "train",
+    "2006663_sa-30175b": "train",
+    "2006663_sa-30400a": "train",
+    "2006663_sa-30625b": "train",
+    "2006663_sa-30739a": "train",
+    "2006663_sa-30739b": "train",
+    "2006663_sa-30925a": "train",
+    "2006663_sa-30925b": "train",
+    "2006663_sa-31100a": "train",
+    "2006663_sa-31100b": "train",
+    "2006663_sa-31107a": "train",
+    "2006663_sa-31164a": "train",
+    "2006663_sa-31164b": "val",
+    "2006663_sa-31209a": "val",
+    "2006663_sa-31209b": "train",
+    "2006663_sa-31393a": "val",
+    "2006663_sa-31418a": "train",
+    "2006663_sa-31418b": "val",
+    "2006663_sa-31457a": "val",
+    "2006663_sa-31457b": "val",
+    "2006663_sa-31743a": "train",
+    "2006663_sa-31743b": "train",
+    "2006663_sa-31938a": "train",
+    "2006663_sa-31938b": "val",
+    "2006663_sa-31959a": "train",
+    "2006663_sa-31959b": "train",
+    "2006663_sa-31985a": "train",
+    "2006663_sa-31985b": "train",
+    "2006663_sa-32013a": "train",
+    "2006663_sa-32135a": "train",
+    "2006663_sa-32135b": "train",
+    "2006663_sa-32135c": "train",
+    "2006663_sa-32198a": "val",
+    "2006663_sa-32198b": "val",
+    "2006663_sa-32243a": "train",
+    "2006663_sa-32308a": "train",
+    "2006663_sa-32308b": "val",
+    "2006663_sa-32361a": "train",
+    "2006663_sa-32373a": "train",
+    "2006663_sa-32373b": "val",
+    "2006663_sa-32379a": "train",
+    "2006663_sa-32437a": "train",
+    "2006663_sa-32566a": "train",
+    "2006663_sa-32566b": "train",
+    "2006663_sa-32652a": "train",
+    "2006663_sa-32652b": "train",
+    "2006663_sa-33250a": "train",
+    "2006663_sa-33250b": "val",
+    "2006663_sa-33452a": "val",
+    "2006663_sa-33452b": "train",
+    "2006663_sa-33452c": "train",
+    "2006663_sa-33452d": "train"
+  }
+}
