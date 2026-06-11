@@ -59,21 +59,38 @@ Per-run folder `runs/<run-name>/`:
 - **Photometric aug**: brightness/contrast/saturation/hue, mild blur/noise.
 - Class imbalance handled at train time (balanced sampling / loss weighting), not by deleting animal data.
 
+## Inference-ready checkpoints
+
+`strip_checkpoint.py` converts a Lightning training checkpoint into a compact, self-describing `*.stripped.ckpt` (optimizer/scheduler/callback state removed; ~3.6 GB → ~1.2 GB). It is a plain dict saved with `torch.save` (load with `weights_only=False`); everything except `state_dict` is configuration metadata, i.e. plain numbers/strings, not code or a graph. `run_inference.py` reads these fields to rebuild the model and its preprocessing. Stored fields:
+
+- `format` — schema tag (`csa-classifier-inference-v1`).
+- `model_name` — the timm model id used to recreate the architecture.
+- `num_classes` — number of output classes.
+- `classes` — the ordered list of class names; the list index is the model's output label id.
+- `img_size` — the square input size the model expects (e.g. 448).
+- `norm_mean`, `norm_std` — per-channel normalization (from the timm model's data config).
+- `banner_crop` — `{top, bottom}` fractions of image height that **were cropped off the top/bottom during training** (a record of the training-time preprocessing; the inference script's own banner handling is configured separately).
+- `preprocessing` — a human-readable description of the preprocessing pipeline.
+- `weights_dtype` — `float32` or `float16` (the dtype the weights are stored in).
+- `source_checkpoint`, `epoch`, `global_step` — provenance: which training checkpoint this was derived from.
+- `state_dict` — the timm model weights (the only non-metadata payload).
+
 ## TODO
 
 ### P0
 
-- **Inference script**: bulk inference script to emit the [MegaDetector output format](https://lila.science/megadetector-output-format), using a full-image "detection" box per image (this is a classification-only model), roughly matching the semantics of [run_md_and_speciesnet.py](https://github.com/agentmorris/MegaDetector/blob/main/megadetector/detection/run_md_and_speciesnet.py) (images only, no video).
-- **Eval script**: Verify that we can replicate the validation accuracy numbers using the bulk inference script
+- **New data:** Talk to CDFW about pulling in additional data
 
 ### P1
 
-- **Confusion matrix preparation**
+- **Clean blanks:** find images both train and val that are predicted as blank but aren't labeled as blank, assess which are actually blank, consider re-training
 - **Inference-time banner-crop A/B (quick):** evaluate val accuracy with the banner crop on vs off, to pick the inference default and confirm the synthetic-banner augmentation actually makes the model crop-agnostic.
 - **Add checkpointing to inference script**
 
 ### P2
 
+- **Layer freezing:**: training appears to be overfitting quickly, consider keeping eva02_large@448 but freezing many layers
+- **Reduce penalties for partial mistakes**: consider adjusting the loss function so that for, e.g., a specific rodent species, predicting "other rodent" is penalized less than predicting "bird"
 - **Architecture A/B (if we want to push accuracy past eva02_large@448):** candidates to prioritize, roughly in order —
   1. `convnextv2_large` / `convnextv2_huge` @ 384–512 (strong fine-grained CNN, fast).
   2. `eva02_large_patch14_448` is our baseline; also try `eva02_large` at higher test-time resolution (448→512) via timm's dynamic img-size.
@@ -84,10 +101,11 @@ Per-run folder `runs/<run-name>/`:
 - **Hierarchical cascade (alternative to the flat model):** e.g. blank/non-blank → coarse class (mammal/reptile/amphibian/bird/insect/other) → finer visual groups. Could be more robust on the long tail and lets us calibrate a high-recall blank filter independently. Wrap all stages behind one inference script.
 - **Banner handling as a *training-time* experiment:** compare (a) no crop, (b) crop only, (c) crop + synthetic-banner aug — on val accuracy and cross-camera robustness. Revisit whether to crop at train at all. (The inference-time A/B in the TODO list is the quick first cut of this.)
 - **Rectangular-input fine-tuning** (e.g. 448×630 to match the ~1.42:1 frame aspect via pos-embed interpolation) to avoid the squash distortion entirely.
+
+### P3
+
 - Revisit `unknown` (736) — currently excluded; could become an abstain/OOD target.
 - Consider keeping the vertebrate label on multi-annotation images to recover ~9k images.
-- Test-time augmentation and per-class threshold calibration for deployment.
-- Detector-guided cropping (crop to an animal box, then classify) would dissolve the whole-frame small-animal problem, but MegaDetector is unreliable on these downward-facing cameras, so it's not an option unless a suitable detector emerges.
 
 ## Dataset bugs found (reported to maintainer)
 
