@@ -79,13 +79,15 @@ Per-run folder `runs/<run-name>/`:
 
 ### P0
 
-- **New data:** Talk to CDFW about pulling in additional data
 
 ### P1
 
-- **Clean blanks:** find images both train and val that are predicted as blank but aren't labeled as blank, assess which are actually blank, consider re-training
+- **Data cleanup:** find images both train and val that are predicted as blank but aren't labeled as blank, assess which are actually blank.  Also vice-versa, for high-confidence non-blank predictions.  Consider re-training after this.
 - **Inference-time banner-crop A/B (quick):** evaluate val accuracy with the banner crop on vs off, to pick the inference default and confirm the synthetic-banner augmentation actually makes the model crop-agnostic.
 - **Add checkpointing to inference script**
+- **New data:** Talk to CDFW about pulling in additional data
+- **Test on Ohio Small Animals data, consider adding to training**
+- **Test on CCER Small Animals data, consider adding to training**
 
 ### P2
 
