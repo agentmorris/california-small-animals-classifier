@@ -79,20 +79,18 @@ Per-run folder `runs/<run-name>/`:
 
 ### P0
 
+- **Data cleanup:** find images both train and val that are predicted as blank but aren't labeled as blank, assess which are actually blank.  Also vice-versa, for high-confidence non-blank predictions.  Consider re-training after this.
+- **Inference-time banner-crop A/B (quick):** evaluate val accuracy with the banner crop on vs off, to pick the inference default and confirm the synthetic-banner augmentation actually makes the model crop-agnostic.
+- **Test on Ohio Small Animals data, consider adding to training**
+- **Test on CCER Small Animals data, consider adding to training**
+- **Test on CIC Shrew Monitoring data, consider adding to training**
 
 ### P1
 
-- **Data cleanup:** find images both train and val that are predicted as blank but aren't labeled as blank, assess which are actually blank.  Also vice-versa, for high-confidence non-blank predictions.  Consider re-training after this.
-- **Inference-time banner-crop A/B (quick):** evaluate val accuracy with the banner crop on vs off, to pick the inference default and confirm the synthetic-banner augmentation actually makes the model crop-agnostic.
 - **Add checkpointing to inference script**
-- **New data:** Talk to CDFW about pulling in additional data
-- **Test on Ohio Small Animals data, consider adding to training**
-- **Test on CCER Small Animals data, consider adding to training**
-
-### P2
-
 - **Layer freezing:**: training appears to be overfitting quickly, consider keeping eva02_large@448 but freezing many layers
 - **Reduce penalties for partial mistakes**: consider adjusting the loss function so that for, e.g., a specific rodent species, predicting "other rodent" is penalized less than predicting "bird"
+- **New CDFW data:** Talk to CDFW about pulling in additional data
 - **Architecture A/B (if we want to push accuracy past eva02_large@448):** candidates to prioritize, roughly in order —
   1. `convnextv2_large` / `convnextv2_huge` @ 384–512 (strong fine-grained CNN, fast).
   2. `eva02_large_patch14_448` is our baseline; also try `eva02_large` at higher test-time resolution (448→512) via timm's dynamic img-size.
@@ -104,7 +102,7 @@ Per-run folder `runs/<run-name>/`:
 - **Banner handling as a *training-time* experiment:** compare (a) no crop, (b) crop only, (c) crop + synthetic-banner aug — on val accuracy and cross-camera robustness. Revisit whether to crop at train at all. (The inference-time A/B in the TODO list is the quick first cut of this.)
 - **Rectangular-input fine-tuning** (e.g. 448×630 to match the ~1.42:1 frame aspect via pos-embed interpolation) to avoid the squash distortion entirely.
 
-### P3
+### P2
 
 - Revisit `unknown` (736) — currently excluded; could become an abstain/OOD target.
 - Consider keeping the vertebrate label on multi-annotation images to recover ~9k images.

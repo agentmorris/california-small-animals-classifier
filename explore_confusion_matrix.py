@@ -11,16 +11,26 @@ Notebook for exploring the results of a validation pass.
 import os
 import json
 
-image_folder = 'f:/data/california-small-animals-training/val'
-results_file = 'c:/temp/california-small-animals-output/runs/eva02-20260608/val_predictions_eva02-20260608-00.json'
+from megadetector.postprocessing.analyze_classification_results import \
+    ClassificationAnalysisOptions, analyze_classification_results
+from megadetector.postprocessing.validate_batch_results import \
+    ValidateBatchResultsOptions, validate_batch_results
+from megadetector.data_management.databases.integrity_check_json_db import \
+    IntegrityCheckOptions, integrity_check_json_db
+from megadetector.visualization.visualize_db import visualize_db, DbVizOptions
+from megadetector.utils.path_utils import open_file
+from megadetector.utils.path_utils import find_images
+from megadetector.utils.ct_utils import write_json
+
+results_file_tag = 'val'
+image_folder = 'f:/data/california-small-animals-training/' + results_file_tag
+results_file = 'c:/temp/california-small-animals-output/runs/eva02-20260608/' + \
+    results_file_tag + '_predictions_eva02-20260608-00.json'
 assert os.path.isdir(image_folder)
 assert os.path.isfile(results_file)
 
 
 #%% Validate results file
-
-from megadetector.postprocessing.validate_batch_results import \
-    ValidateBatchResultsOptions, validate_batch_results
 
 options = ValidateBatchResultsOptions()
 
@@ -36,66 +46,68 @@ r = validate_batch_results(json_filename=results_file,
 
 #%% Prepare ground truth file
 
-from megadetector.utils.path_utils import find_images
-from megadetector.utils.ct_utils import write_json
+force_prepare_gt_file = False
 
-val_json_file = os.path.join(image_folder,'val_cct.json')
+batch_json_file = os.path.join(image_folder,results_file_tag + '_cct.json')
 
-with open(results_file,'r') as f:
-    results = json.load(f)
+if os.path.exists(batch_json_file) and (not force_prepare_gt_file):
 
-classification_category_names = set(results['classification_categories'].values())
+    print('{} exists, bypassing GT generation'.format(batch_json_file))
 
-category_folders = os.listdir(image_folder)
-category_folders = \
-    [s for s in category_folders if os.path.isdir(os.path.join(image_folder,s))]
+else:
 
-assert set(category_folders) == classification_category_names
+    with open(results_file,'r') as f:
+        results = json.load(f)
 
-image_files_relative = find_images(image_folder,return_relative_paths=True,recursive=True)
+    classification_category_names = set(results['classification_categories'].values())
 
-images = []
-annotations = []
+    category_folders = os.listdir(image_folder)
+    category_folders = \
+        [s for s in category_folders if os.path.isdir(os.path.join(image_folder,s))]
 
-category_name_to_id = {}
-categories = []
+    assert set(category_folders) == classification_category_names
 
-for i_category,category_name in enumerate(classification_category_names):
-    category_id = i_category
-    category_name_to_id[category_name] = category_id
-    category = {'name':category_name,'id':category_id}
-    categories.append(category)
+    image_files_relative = find_images(image_folder,return_relative_paths=True,recursive=True)
 
-for fn in image_files_relative:
+    images = []
+    annotations = []
 
-    tokens = fn.split('/')
-    category_name = tokens[0]
-    assert category_name in classification_category_names
+    category_name_to_id = {}
+    categories = []
 
-    im = {}
-    im['file_name'] = fn
-    im['id'] = fn
-    images.append(im)
+    for i_category,category_name in enumerate(classification_category_names):
+        category_id = i_category
+        category_name_to_id[category_name] = category_id
+        category = {'name':category_name,'id':category_id}
+        categories.append(category)
 
-    ann = {}
-    ann['image_id'] = fn
-    ann['id'] = fn + '_ann'
-    ann['category_id'] = category_name_to_id[category_name]
-    annotations.append(ann)
+    for fn in image_files_relative:
 
-coco_out = {}
-coco_out['info'] = {}
-coco_out['images'] = images
-coco_out['annotations'] = annotations
-coco_out['categories'] = categories
+        tokens = fn.split('/')
+        category_name = tokens[0]
+        assert category_name in classification_category_names
 
-write_json(val_json_file,coco_out)
+        im = {}
+        im['file_name'] = fn
+        im['id'] = fn
+        images.append(im)
+
+        ann = {}
+        ann['image_id'] = fn
+        ann['id'] = fn + '_ann'
+        ann['category_id'] = category_name_to_id[category_name]
+        annotations.append(ann)
+
+    coco_out = {}
+    coco_out['info'] = {}
+    coco_out['images'] = images
+    coco_out['annotations'] = annotations
+    coco_out['categories'] = categories
+
+    write_json(batch_json_file,coco_out)
 
 
 #%% Validate COCO file
-
-from megadetector.data_management.databases.integrity_check_json_db import \
-    IntegrityCheckOptions, integrity_check_json_db
 
 options = IntegrityCheckOptions()
 
@@ -113,16 +125,13 @@ options.requireInfo = True
 options.validateBoxes = None
 
 sorted_categories, data, error_info = \
-    integrity_check_json_db(json_file=val_json_file,
+    integrity_check_json_db(json_file=batch_json_file,
                             options=options)
 
 
 #%% Preview COCO file
 
-from megadetector.visualization.visualize_db import visualize_db, DbVizOptions
-from megadetector.utils.path_utils import open_file
-
-val_preview_folder = 'c:/temp/csa-val-preview'
+preview_folder = 'c:/temp/csa-{}-preview'.format(results_file_tag)
 
 options = DbVizOptions()
 options.num_to_visualize = 500
@@ -150,8 +159,8 @@ options.colormap = None
 options.create_category_pages = False
 options.max_sequence_length = None
 
-html_output_file,image_db = visualize_db(db_path=val_json_file,
-                                         output_dir=val_preview_folder,
+html_output_file,image_db = visualize_db(db_path=batch_json_file,
+                                         output_dir=preview_folder,
                                          image_base_dir=image_folder,
                                          options=options)
 
@@ -160,18 +169,19 @@ open_file(html_output_file)
 
 #%% Classification analysis
 
-analysis_preview_folder = os.path.join(os.path.dirname(results_file),'classification-analysis')
+threshold = 0.4
 
-from megadetector.postprocessing.analyze_classification_results import \
-    ClassificationAnalysisOptions, analyze_classification_results
+analysis_preview_folder = \
+    os.path.join(os.path.dirname(results_file),
+                 'classification-analysis-{:.2f}'.format(threshold))
 
 options = ClassificationAnalysisOptions()
 
 options.results_file = results_file
-options.gt_file = val_json_file
-options.classification_confidence_threshold = 0.0
-
+options.gt_file = batch_json_file
+options.classification_confidence_threshold = threshold
 options.detection_threshold = 0.0
+
 options.image_base_dir = image_folder
 options.html_output_dir = analysis_preview_folder
 options.max_total_images = 8000
@@ -192,6 +202,7 @@ options.single_label_per_image = False
 options.max_images_per_html_file = 1000
 options.predicted_category_name_mappings = None
 options.gt_category_name_mappings = None
+options.n_below_threshold_classifications_to_display = 3
 
 r = analyze_classification_results(options)
 open_file(r.html_output_file)
