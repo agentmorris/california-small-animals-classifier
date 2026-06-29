@@ -19,11 +19,11 @@ See `analyze_metadata.py` / `analyze_taxonomy.py` (in the output folder) for the
 
 ## Plan
 
-- *Single, flat multi-class classifier* over a medium-granularity label set (29 classes = 27 animal + `blank` + `setup_pickup`); see `label_map.py`. Provenance (camera split + category assignments) is recorded in `training_info.20260608.json`.  Here we use "single, flat" to contrast this approach with a hierarchical approach that we may pursue in the future, where a first model classifies, e.g., blank/non-blank, or blank/mammal/reptile/bird/amphibian, etc., and subsequent, taxa-specific models classify species.
-- Split *by camera*, 85/15 train/val, *class-aware via ILP* (every class lands ~15% in val and appears on both sides).  Locked in `camera_split.csv`. See `make_split.py`.
-- `blank` downsampled to *1 frame/sequence, then capped 300/camera (~115k)*. Multi-annotation images (9,372) dropped. ~1.06M images total.
-- Stored training copies: whole frame resized to *~512px short side* (JPEG q90) under `F:\data\california-small-animals-training` as `train/<class>/<camera>__<id>.jpg`.
-- Backbone: *timm `eva02_large_patch14_448.mim_m38m_ft_in22k_in1k`* @ 448px, trained with PyTorch Lightning on 2x RTX 4090 (DDP). Checkpoint every epoch.
+- Single, flat multi-class classifier over a medium-granularity label set (29 classes = 27 animal + `blank` + `setup_pickup`); see `label_map.py`. Provenance (camera split + category assignments) is recorded in `training_info.20260608.json`.  Here we use "single, flat" to contrast this approach with a hierarchical approach that we may pursue in the future, where a first model classifies, e.g., blank/non-blank, or blank/mammal/reptile/bird/amphibian, etc., and subsequent, taxa-specific models classify species.
+- Split by camera, 85/15 train/val, class-aware via ILP (every class lands ~15% in val and appears on both sides).  Locked in `camera_split.csv`. See `make_split.py`.
+- `blank` downsampled to 1 frame/sequence, then capped 300/camera (~115k). Multi-annotation images (9,372) dropped. ~1.06M images total.
+- Stored training copies: whole frame resized to ~512px short side (JPEG q90) under `F:\data\california-small-animals-training` as `train/<class>/<camera>__<id>.jpg`.
+- Backbone: timm `eva02_large_patch14_448.mim_m38m_ft_in22k_in1k` @ 448px, trained with PyTorch Lightning on 2x RTX 4090 (DDP). Checkpoint every epoch.
 
 ### Training environment
 
