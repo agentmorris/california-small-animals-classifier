@@ -1,6 +1,6 @@
 # California Small Animals Classifier
 
-Training image classifier(s) for the LILA [California Small Animals](https://lila.science/datasets/california-small-animals/) camera trap dataset.  This dataset is provided by California Fish and Wildlife); it contains images from downward-facing, short-focus Reconyx cameras over drift fences.
+This repo contains training and evaluation code for an image classifier trained on the [California Small Animals](https://lila.science/datasets/california-small-animals/) camera trap dataset.  This dataset is provided by California Fish and Wildlife); it contains images from downward-facing, short-focus Reconyx cameras intended for small animal monitoring.
 
 This README is not intended (yet) as an external introduction to the project, it's intended as internal book-keeping, so, excuse all the local filenames that have no meaning other than the computer where I'm typing this.
 
