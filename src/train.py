@@ -70,6 +70,33 @@ class Throughput(L.Callback):
                   flush=True)
 
 
+class IntermediateCheckpoint(L.Callback):
+    """Write `per_epoch` EXTRA weights-only checkpoints spread through each epoch.
+
+    Fires at i/(per_epoch+1) of the epoch for i in 1..per_epoch (per_epoch=1 -> halfway;
+    per_epoch=2 -> 1/3 and 2/3; per_epoch=8 -> 1/9..8/9). Targets are recomputed each epoch (no
+    cross-epoch drift) and never land on the epoch boundary, so these are purely additive to the
+    usual full epoch-end checkpoints. Saved weights-only (~1.2 GB, no optimizer) for cheap offline
+    validation later; loadable by strip_checkpoint.py / run_inference.py.
+    """
+    def __init__(self, dirpath, run_name, per_epoch):
+        self.dirpath = dirpath
+        self.run_name = run_name
+        self.per_epoch = per_epoch
+        self._targets = set()
+
+    def on_train_epoch_start(self, trainer, pl_module):
+        n = trainer.num_training_batches  # train batches this epoch (per rank)
+        self._targets = {max(1, round(n * i / (self.per_epoch + 1)))
+                         for i in range(1, self.per_epoch + 1)}
+
+    def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
+        if (batch_idx + 1) in self._targets:
+            fn = f"{self.run_name}-e{trainer.current_epoch:02d}-s{trainer.global_step:06d}.ckpt"
+            # called on all ranks at the same batch -> save_checkpoint coordinates the DDP gather
+            trainer.save_checkpoint(os.path.join(self.dirpath, fn), weights_only=True)
+
+
 class CSADataset(Dataset):
     def __init__(self, paths, labels, transform):
         self.paths = paths
@@ -208,6 +235,10 @@ def main():
                          "run folder (use a fast WSL-local/ext4 path to keep the big per-epoch "
                          "writes off the 9p run folder); on a clean finish they are moved into "
                          "runs/<run-name>/checkpoints/. On a crash/cancel, move them manually.")
+    ap.add_argument("--intermediate-checkpoints-per-epoch", type=int, default=0,
+                    help="if >0, also write this many EXTRA weights-only checkpoints spread through "
+                         "each epoch, at i/(N+1) of the way (N=1 -> halfway; N=2 -> 1/3 and 2/3; "
+                         "N=8 -> 1/9..8/9). The usual full epoch-end checkpoints are still written.")
     args = ap.parse_args()
 
     # Per-run output folder: runs/<run-name>/ holds checkpoints/, metrics.csv,
@@ -283,6 +314,11 @@ def main():
     callbacks = [lrmon, Throughput(args.batch_size)]
     if not args.benchmark_steps:
         callbacks.append(ckpt)
+        if args.intermediate_checkpoints_per_epoch > 0:
+            callbacks.append(IntermediateCheckpoint(
+                ckpt_dir, run_name, args.intermediate_checkpoints_per_epoch))
+            print(f"intermediate checkpoints: {args.intermediate_checkpoints_per_epoch}/epoch "
+                  f"(extra, weights-only)", flush=True)
         if args.patience > 0:
             callbacks.append(EarlyStopping(monitor="val/acc_macro", mode="max",
                                            patience=args.patience))

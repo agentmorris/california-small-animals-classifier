@@ -38,8 +38,13 @@ Performance notes: `torch.compile` + DDP needs `torch._dynamo.config.optimize_dd
 From a WSL shell; the launcher activates the env, cds into the correct folder, and sets the alloc config, and runs `train.py`)...
 
 ```
-bash /mnt/c/temp/california-small-animals-output/wsl_train.sh --devices 2 --batch-size 24 --workers 12 --epochs 20 --patience 5 --run-name eva02-20260628
+export RUN_NAME="eva02-20260628"
+bash /mnt/c/temp/california-small-animals-output/wsl_train.sh --devices 2 --batch-size 24 --workers 12 --epochs 20 --patience 5 --intermediate-checkpoints-per-epoch 8 --run-name ${RUN_NAME} --checkpoint_-folder ~/data/checkpoints-${RUN_NAME}
 ```
+
+`--intermediate-checkpoints-per-epoch` enables weights-only checkpoints during each epoch, in addition to the checkpoints written at the end of each epoch.  These are used for post-hoc evaluation of whether validation accuracy is significantly peaking mid-epoch.
+
+`--checkpoints-folder` allows checkpoints to written to a temporary location that's different than the final output folder, useful when training on WSL but planning to move everything to a Windows drive (writing checkpoints across a Windows mount has a habit of freezing PyTorch).
 
 `--patience 5` enables early stopping on `val/acc_macro` (stops if macro accuracy hasn't improved for 5 epochs); omit it for a fixed `--epochs` run. Each run writes everything to its own folder `runs/<run-name>/` (see "Output folder structure" below); `--run-name` defaults to a timestamp, and the launcher refuses to reuse an existing run folder.  Track progress via `runs/<run-name>/metrics.csv` (or `nvidia-smi`); the best epoch's checkpoint (by `val/acc_macro`) is the one to keep.
 
@@ -176,8 +181,6 @@ More permanent options to pursue later (deliberately not moving to single-GPU tr
 1. Move all training *output* (logs, checkpoints, metrics) onto the WSL ext4 partition while still reading images from `/mnt/f`, and copy results back to Windows after a run. Probably fits now given how few epochs a run takes, at worst needs freeing a little space.
 2. Move *everything*, including the resized training images, onto WSL ext4. Needs clearing more space, still not a big deal.
 3. Create a second, larger WSL ext4 partition (another vhdx) with ample free space, avoiding both 9p and having to free space on the current partition.
-
-
 
 ## Dataset bugs found
 
