@@ -14,7 +14,8 @@ from label_map import META, OUT, CLASS_ORDER, target_class
 from make_split import VAL_FRAC, BLANK_FRAMES_PER_SEQ, BLANK_CAP_PER_CAM, SEED
 
 DATE = "20260608"
-OUT_JSON = os.path.join(os.path.dirname(__file__), f"training_info.{DATE}.json")
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # src/ -> repo root
+OUT_JSON = os.path.join(REPO_ROOT, f"training_info.{DATE}.json")
 
 EXCLUDE_REASONS = {
     "unknown": "not a coherent visual class",
