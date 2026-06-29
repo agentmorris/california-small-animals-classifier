@@ -12,6 +12,7 @@ import argparse
 import datetime
 import os
 import platform
+import shutil
 import time
 
 import numpy as np
@@ -202,6 +203,11 @@ def main():
                          "with this patience in epochs")
     ap.add_argument("--no-exclude", action="store_true",
                     help="train on every image in the split, ignoring manual-review exclusions")
+    ap.add_argument("--checkpoint-folder", default=None,
+                    help="write checkpoints to <folder>/<run-name>/ during training instead of the "
+                         "run folder (use a fast WSL-local/ext4 path to keep the big per-epoch "
+                         "writes off the 9p run folder); on a clean finish they are moved into "
+                         "runs/<run-name>/checkpoints/. On a crash/cancel, move them manually.")
     args = ap.parse_args()
 
     # Per-run output folder: runs/<run-name>/ holds checkpoints/, metrics.csv,
@@ -212,8 +218,25 @@ def main():
                 or datetime.datetime.now().strftime("%Y.%m.%d.%H.%M.%S"))
     os.environ["CSA_RUN_NAME"] = run_name
     run_dir = os.path.join(RUNS_DIR, run_name)
-    ckpt_dir = os.path.join(run_dir, "checkpoints")
+    final_ckpt_dir = os.path.join(run_dir, "checkpoints")  # durable home, in the run folder
+    # Optionally write checkpoints to a separate (e.g. fast WSL-local) folder during the run so the
+    # big per-epoch writes don't hit the slow/9p run folder; moved into the run folder at the end of
+    # a clean run (see after trainer.fit). metrics.csv / hparams.yaml / log stay in the run folder.
+    ckpt_dir = (os.path.join(args.checkpoint_folder, run_name)
+                if args.checkpoint_folder else final_ckpt_dir)
     os.makedirs(ckpt_dir, exist_ok=True)
+
+    # Lightning's CSVLogger truncates metrics.csv when it re-inits on a resumed run (it does not
+    # read prior rows), so preserve the prior segment first. Each resume leaves a timestamped
+    # metrics.<ts>.csv beside the fresh metrics.csv, so the full per-epoch history spans all
+    # metrics*.csv in the run folder. rank-0 only (this runs before DDP spawns; guard on LOCAL_RANK).
+    if args.resume and os.environ.get("LOCAL_RANK", "0") == "0":
+        prior_metrics = os.path.join(run_dir, "metrics.csv")
+        if os.path.exists(prior_metrics):
+            ts = datetime.datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
+            backup = os.path.join(run_dir, f"metrics.{ts}.csv")
+            shutil.copy2(prior_metrics, backup)
+            print(f"resume: backed up metrics.csv -> {os.path.basename(backup)}", flush=True)
 
     torch.set_float32_matmul_precision("high")
     # torch.compile's DDPOptimizer (graph bucket-splitting) chokes on EVA's
@@ -284,12 +307,27 @@ def main():
     )
     ckpt_path = None
     if args.resume == "last":
-        last = os.path.join(ckpt_dir, "last.ckpt")
-        ckpt_path = last if os.path.exists(last) else None
+        # prefer the active checkpoint folder; fall back to the run folder (e.g. after a crash
+        # where the checkpoints were moved back into runs/<run-name>/checkpoints/ manually).
+        cands = [os.path.join(ckpt_dir, "last.ckpt"), os.path.join(final_ckpt_dir, "last.ckpt")]
+        ckpt_path = next((c for c in cands if os.path.exists(c)), None)
         print(f"resume: {ckpt_path or 'no last.ckpt found, starting fresh'}")
     elif args.resume:
         ckpt_path = args.resume
     trainer.fit(model, train_loader, val_loader, ckpt_path=ckpt_path)
+
+    # If checkpoints went to a separate folder, move them into the run folder now that training
+    # finished cleanly. This final move touches the run folder (possibly 9p) and could stall, which
+    # is acceptable here since the run is done; on a crash/cancel it is skipped, so move manually.
+    # rank-0 only and no collectives, so it cannot desync DDP.
+    if trainer.is_global_zero and ckpt_dir != final_ckpt_dir:
+        os.makedirs(final_ckpt_dir, exist_ok=True)
+        names = sorted(n for n in os.listdir(ckpt_dir)
+                       if os.path.isfile(os.path.join(ckpt_dir, n)))
+        print(f"moving {len(names)} checkpoint file(s): {ckpt_dir} -> {final_ckpt_dir}", flush=True)
+        for n in names:
+            shutil.move(os.path.join(ckpt_dir, n), os.path.join(final_ckpt_dir, n))
+        print("checkpoint move complete", flush=True)
 
 
 if __name__ == "__main__":

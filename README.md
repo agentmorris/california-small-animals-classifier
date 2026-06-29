@@ -33,7 +33,7 @@ Fast config (accuracy-safe): autocast bf16 (fp32 master) + grad-checkpointing + 
 
 Performance notes: `torch.compile` + DDP needs `torch._dynamo.config.optimize_ddp = False` (DDPOptimizer chokes on EVA's rope/SDPA subgraph); `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` avoids compile-time fragmentation OOMs; per-GPU batch 24. Measured \~64 img/s on 2 GPUs (both \~100% util, \~12 GB each), \~4.2 h/epoch (18,618 steps).
 
-### Starting Training
+### Starting training
 
 From a WSL shell; the launcher activates the env, cds into the correct folder, and sets the alloc config, and runs `train.py`)...
 
@@ -41,7 +41,13 @@ From a WSL shell; the launcher activates the env, cds into the correct folder, a
 bash /mnt/c/temp/california-small-animals-output/wsl_train.sh --devices 2 --batch-size 24 --workers 12 --epochs 20 --patience 5 --run-name eva02-20260628
 ```
 
-`--patience 5` enables early stopping on `val/acc_macro` (stops if macro accuracy hasn't improved for 5 epochs); omit it for a fixed `--epochs` run. Each run writes everything to its own folder `runs/<run-name>/` (see "Output folder structure" below); `--run-name` defaults to a timestamp, and the launcher refuses to reuse an existing run folder — pick a new name, or pass `--resume last` to continue an interrupted one. Track progress via `runs/<run-name>/metrics.csv` (or `nvidia-smi`); the best epoch's checkpoint (by `val/acc_macro`) is the one to keep.
+`--patience 5` enables early stopping on `val/acc_macro` (stops if macro accuracy hasn't improved for 5 epochs); omit it for a fixed `--epochs` run. Each run writes everything to its own folder `runs/<run-name>/` (see "Output folder structure" below); `--run-name` defaults to a timestamp, and the launcher refuses to reuse an existing run folder.  Track progress via `runs/<run-name>/metrics.csv` (or `nvidia-smi`); the best epoch's checkpoint (by `val/acc_macro`) is the one to keep.
+
+### Resuming training
+
+Resume an interrupted training run by passing the same value for `--run-name`, along with `--resume last`.  It is recommended to supply values for all the other parameters that match the original training run, but it's not required, e.g., you could theoretically change the batch size between starting a training run and resuming the same training run.
+
+On resume, the existing `metrics.csv` is first copied to a timestamped `metrics.<timestamp>.csv` in the run folder, because Lightning's `CSVLogger` truncates `metrics.csv` when it re-initializes (it does not read the prior rows). The live `metrics.csv` therefore holds only the latest segment, so the full per-epoch history is spread across all `metrics*.csv` files: anything that reads per-epoch metrics (e.g. copy_best_checkpoint.py) should scan all of them, not just `metrics.csv`.
 
 ### Monitoring training
 
@@ -60,6 +66,16 @@ Training losses are updated every batch, validation metrics are written every ep
 export RUN_NAME="eva02-20260628"
 watch -n 10 tail -n 20 /mnt/c/temp/california-small-animals-output/runs/${RUN_NAME}/metrics.csv
 ```
+
+### When training finishes
+
+After a run finishes (or you stop it early), the usual next step is to extract the single best epoch as a compact, inference-ready checkpoint. `copy_best_checkpoint.py <run-name>` does this: it finds the epoch with the highest `val/acc_macro`, strips the optimizer/scheduler/callback state from that epoch's checkpoint (reusing `strip_checkpoint.py`), and writes `<run-name>.best.epochNN.stripped.pt` to the run-folder root. That `.stripped.pt` is the self-describing inference format documented under "Inference-ready checkpoints", and is what `run_inference.py` consumes. The script errors if the chosen epoch's checkpoint is missing; pass `--half` to store fp16 weights.
+
+```
+python copy_best_checkpoint.py eva02-20260628
+```
+
+It reads every `metrics*.csv` in the run folder, not just `metrics.csv`, because a resumed run spreads its per-epoch history across multiple files (see "Resuming training"). If the same epoch appears in more than one file (an abandoned attempt plus its post-resume redo), the highest-`step` row wins so the score matches the checkpoint actually on disk; ties on `val/acc_macro` go to the later epoch.
 
 ### Output folder structure
 
@@ -148,6 +164,20 @@ First pass (2026-06-28): 5,743 images excluded — almost all `blank`-labeled fr
 
 - Revisit `unknown` (736) — currently excluded; could become an abstain/OOD target.
 - Consider keeping the vertebrate label on multi-annotation images to recover ~9k images.
+
+#### Training crash due to WSL I/O timeout
+
+DDP training runs in WSL2 but writes a ~3.4 GB checkpoint to `/mnt/c` every epoch and reads images from `/mnt/f`, both over the 9p mount. Under load 9p can intermittently stall (a syscall can wedge in uninterruptible D-state), the same instability that pushed inference to native Windows. When one rank stalls on such a write the other rank keeps spinning in the epoch-boundary NCCL collective until the 30-minute watchdog times out and tears the whole run down. Seen on run `eva02-20260628`: epoch 2 validated and logged its metrics but the epoch-2 checkpoint write hung (no `-02.ckpt`, while `-00`/`-01` had saved fine, so the stall is intermittent rather than deterministic); the crash signature is `ProcessGroupNCCL ... Watchdog caught collective operation timeout ... ALLREDUCE ... Timeout(ms)=1800000`. Recovery is cheap since checkpoints are per-epoch (`--resume last`).
+
+Temporary fix (implemented): `train.py --checkpoint-folder <dir>` writes checkpoints to `<dir>/<run-name>/` during the run; point it at a fast WSL-local (ext4) folder (e.g. `~/csa-checkpoints`) so the big per-epoch write never touches 9p, which is where the hang occurred. `metrics.csv`, `hparams.yaml`, and the training log stay in the run folder on `/mnt/c` (tiny appends, still monitorable from Windows). On a clean finish `train.py` moves the checkpoints into `runs/<run-name>/checkpoints/` (this single final move may itself stall on 9p, but the run is already done; on a crash or early cancel it is skipped, so move them manually). This keeps both GPUs and adds no ongoing coupling between the WSL and Windows outputs. Note it isolates the checkpoint-write path where the hang occurred; a 9p read stall on `/mnt/f` during data loading remains a smaller, unaddressed vector.
+
+More permanent options to pursue later (deliberately not moving to single-GPU training, or to anything that more tightly couples the WSL and Windows outputs):
+
+1. Move all training *output* (logs, checkpoints, metrics) onto the WSL ext4 partition while still reading images from `/mnt/f`, and copy results back to Windows after a run. Probably fits now given how few epochs a run takes, at worst needs freeing a little space.
+2. Move *everything*, including the resized training images, onto WSL ext4. Needs clearing more space, still not a big deal.
+3. Create a second, larger WSL ext4 partition (another vhdx) with ample free space, avoiding both 9p and having to free space on the current partition.
+
+
 
 ## Dataset bugs found
 

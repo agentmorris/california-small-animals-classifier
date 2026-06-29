@@ -34,7 +34,7 @@ def resolve_data_cfg(model_name):
     return int(dc["input_size"][-1]), list(map(float, dc["mean"])), list(map(float, dc["std"]))
 
 
-def strip_one(src, data_cfg_cache, half=False):
+def strip_one(src, data_cfg_cache, half=False, dst=None):
     ckpt = torch.load(src, map_location="cpu", weights_only=False)
     hp = ckpt.get("hyper_parameters", {})
     model_name = hp.get("model_name")
@@ -67,7 +67,8 @@ def strip_one(src, data_cfg_cache, half=False):
         "global_step": ckpt.get("global_step"),
         "state_dict": model_sd,
     }
-    dst = src[:-len(".ckpt")] + ".stripped.ckpt" if src.endswith(".ckpt") else src + ".stripped.ckpt"
+    if dst is None:
+        dst = src[:-len(".ckpt")] + ".stripped.ckpt" if src.endswith(".ckpt") else src + ".stripped.ckpt"
     torch.save(out, dst)
     return dst, os.path.getsize(src), os.path.getsize(dst), len(model_sd)
 
