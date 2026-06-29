@@ -17,7 +17,7 @@ from multiprocessing import Pool
 import pandas as pd
 from PIL import Image
 
-from label_map import OUT, IMAGE_ROOT, CLASS_ORDER
+from label_map import OUT, IMAGE_ROOT, CLASS_ORDER, EXCLUDE_FILES, load_excluded_guids
 
 TRAIN_ROOT = r"F:\data\california-small-animals-training"
 SPLIT = os.path.join(OUT, "split.parquet")
@@ -51,9 +51,22 @@ def main():
     ap.add_argument("--test", type=int, default=0,
                     help="process only N randomly-sampled images")
     ap.add_argument("--workers", type=int, default=os.cpu_count())
+    ap.add_argument("--exclude", action="append", default=None,
+                    help=f"manual-review JSON(s); images marked 'incorrect' are dropped "
+                         f"(default: {EXCLUDE_FILES})")
+    ap.add_argument("--no-exclude", action="store_true",
+                    help="ignore manual-review exclusions (copy every image in the split)")
     args = ap.parse_args()
 
     df = pd.read_parquet(SPLIT)
+
+    exclude_paths = [] if args.no_exclude else (args.exclude or EXCLUDE_FILES)
+    if exclude_paths:
+        excluded = load_excluded_guids(exclude_paths)
+        before = len(df)
+        df = df[~df.image_id.isin(excluded)]
+        print(f"manual-review: dropped {before - len(df):,} images ({len(excluded):,} excluded guids)")
+
     if args.test:
         df = df.sample(args.test, random_state=0)
     print(f"{len(df):,} images, {args.workers} workers -> {TRAIN_ROOT}")

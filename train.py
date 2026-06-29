@@ -29,7 +29,7 @@ from torchmetrics.classification import MulticlassAccuracy
 from PIL import Image
 import timm
 
-from label_map import OUT, CLASS_ORDER, TRAIN_ROOT
+from label_map import OUT, CLASS_ORDER, TRAIN_ROOT, load_excluded_guids
 from transforms import TrainTransform, ValTransform
 
 SPLIT = os.path.join(OUT, "split.parquet")
@@ -91,8 +91,14 @@ class CSADataset(Dataset):
         raise RuntimeError(f"could not load image near index {i}")
 
 
-def load_frames():
-    df = pd.read_parquet(SPLIT, columns=["dest_rel", "target_class", "split"])
+def load_frames(apply_exclude=True):
+    df = pd.read_parquet(SPLIT, columns=["image_id", "dest_rel", "target_class", "split"])
+    if apply_exclude:
+        excluded = load_excluded_guids()
+        if excluded:
+            before = len(df)
+            df = df[~df.image_id.isin(excluded)]
+            print(f"manual-review: dropped {before - len(df):,} excluded images")
     df["label"] = df["target_class"].astype(str).map(CLASS_TO_IDX).astype(int)
     df["path"] = [os.path.join(TRAIN_ROOT, d.replace("/", os.sep)) for d in df.dest_rel]
     return df[df.split == "train"], df[df.split == "val"]
@@ -194,6 +200,8 @@ def main():
     ap.add_argument("--patience", type=int, default=0,
                     help="if >0, enable early stopping on val/acc_macro (mode max) "
                          "with this patience in epochs")
+    ap.add_argument("--no-exclude", action="store_true",
+                    help="train on every image in the split, ignoring manual-review exclusions")
     args = ap.parse_args()
 
     # Per-run output folder: runs/<run-name>/ holds checkpoints/, metrics.csv,
@@ -213,7 +221,7 @@ def main():
     if not args.no_compile and args.devices > 1:
         torch._dynamo.config.optimize_ddp = False
 
-    train_df, val_df = load_frames()
+    train_df, val_df = load_frames(apply_exclude=not args.no_exclude)
 
     # resolve normalization from the actual model cfg
     tmp = timm.create_model(args.model, pretrained=False, num_classes=len(CLASS_ORDER))

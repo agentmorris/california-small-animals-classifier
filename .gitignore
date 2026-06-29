@@ -1,4 +1,5 @@
 .claude
 .gemini
+.vscode
 __pycache__
 *.pyc

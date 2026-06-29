@@ -1,7 +1,7 @@
 {
   "created": "2026-06-08",
   "dataset": "california-small-animals",
-  "source_metadata": "california_small_animals_with_sequences_fixed.json",
+  "source_metadata": "california_small_animals_with_sequences.json",
   "description": "First-pass classifier: flat 29-class label set (27 animal + blank + setup_pickup); split by camera (location==folder, 1:1). This file records the train/val camera assignment and how the 256 source categories were mapped/merged/excluded.",
   "parameters": {
     "split_method": "class-aware ILP by camera, minimize per-class relative deviation from val_fraction",

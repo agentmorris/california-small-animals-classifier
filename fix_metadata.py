@@ -1,10 +1,14 @@
 """
-Generate a corrected copy of the California Small Animals metadata JSON.
+Verify and normalize the California Small Animals metadata JSON, in place.
 
-This script documents (and applies) the metadata fixes we identified. It is
-intentionally explicit and defensive: it asserts that each target category still
-looks the way we expect before changing it, so if the source file changes in the
-future the script will fail loudly rather than silently corrupting something.
+This script documents (and applies) the metadata fixes we identified. The fixes are
+already baked into the single canonical metadata file, so on a normal run it just
+verifies they are present and rewrites the file with line breaks; it remains the
+record of what those fixes were. It is intentionally explicit and defensive: it
+asserts that each target category looks the way we expect, so it fails loudly rather
+than silently corrupting something. It is idempotent -- each fix is applied only if
+still needed, so re-running is safe -- and it always writes the output with line
+breaks (indent=1) for human readability.
 
 Fixes applied
 -------------
@@ -25,15 +29,16 @@ NOT changed
   images). This is a likely annotation/auto-ID artifact, not a metadata-structure
   bug, so we leave the metadata as-is.
 
-Input : E:\\data\\california-small-animals\\california_small_animals_with_sequences.json
-Output: E:\\data\\california-small-animals\\california_small_animals_with_sequences_fixed.json
+Operates in place on the single canonical metadata file:
+  E:\\data\\california-small-animals\\california_small_animals_with_sequences.json
 """
 import json
 import os
-from collections import Counter
+import sys
 
+# Single canonical metadata file; this script verifies the fixes and rewrites it in place.
 SRC = r"E:\data\california-small-animals\california_small_animals_with_sequences.json"
-DST = r"E:\data\california-small-animals\california_small_animals_with_sequences_fixed.json"
+DST = SRC
 
 # (id, field, expected_old_value, new_value)
 FIELD_FIXES = [
@@ -55,36 +60,40 @@ def main():
 
     cats_by_id = {c["id"]: c for c in data["categories"]}
 
-    # --- sanity-check the merge endpoints before touching anything ---
-    keep, dup = cats_by_id[KEEP_ID], cats_by_id[DUP_ID]
-    assert keep["name"] == "aspidoscelis species", keep["name"]
-    assert dup["name"] == "aspidocelis species", dup["name"]
-    assert keep.get("genus") == dup.get("genus") == "aspidoscelis", (keep, dup)
-    print(f"Merge endpoints OK: keep id {KEEP_ID} {keep['name']!r}, "
-          f"drop id {DUP_ID} {dup['name']!r}")
-
-    # --- apply scalar field fixes ---
+    # --- apply scalar field fixes (idempotent) ---
     for cid, field, old, new in FIELD_FIXES:
-        cat = cats_by_id[cid]
+        cat = cats_by_id.get(cid)
+        assert cat is not None, f"category {cid} not found"
         cur = cat.get(field)
-        assert cur == old, f"id {cid} {field}: expected {old!r}, found {cur!r}"
-        if new is not None:
+        if new is None:
+            assert cur == old, f"id {cid} {field}: expected {old!r}, found {cur!r}"  # name sanity check
+            continue
+        if cur == new:
+            print(f"id {cid} {field}: already {new!r} (no change)")
+        elif cur == old:
             cat[field] = new
             print(f"Fixed id {cid} {field}: {old!r} -> {new!r}")
+        else:
+            sys.exit(f"id {cid} {field}: expected {old!r} or {new!r}, found {cur!r}")
 
-    # --- remap annotations DUP_ID -> KEEP_ID ---
-    remapped = 0
-    for a in data["annotations"]:
-        if a["category_id"] == DUP_ID:
-            a["category_id"] = KEEP_ID
-            remapped += 1
-    print(f"Remapped {remapped} annotations from category {DUP_ID} -> {KEEP_ID}")
-
-    # --- drop the duplicate category ---
-    before = len(data["categories"])
-    data["categories"] = [c for c in data["categories"] if c["id"] != DUP_ID]
-    print(f"Removed duplicate category {DUP_ID}; "
-          f"categories {before} -> {len(data['categories'])}")
+    # --- merge duplicate category DUP_ID -> KEEP_ID (idempotent) ---
+    keep = cats_by_id.get(KEEP_ID)
+    assert keep is not None and keep["name"] == "aspidoscelis species", keep
+    if DUP_ID in cats_by_id:
+        dup = cats_by_id[DUP_ID]
+        assert dup["name"] == "aspidocelis species", dup["name"]
+        assert keep.get("genus") == dup.get("genus") == "aspidoscelis", (keep, dup)
+        remapped = 0
+        for a in data["annotations"]:
+            if a["category_id"] == DUP_ID:
+                a["category_id"] = KEEP_ID
+                remapped += 1
+        before = len(data["categories"])
+        data["categories"] = [c for c in data["categories"] if c["id"] != DUP_ID]
+        print(f"Merged duplicate category {DUP_ID} -> {KEEP_ID}: remapped {remapped} "
+              f"annotations; categories {before} -> {len(data['categories'])}")
+    else:
+        print(f"Duplicate category {DUP_ID} already merged into {KEEP_ID} (no change)")
 
     # --- verify no annotation still references the removed id ---
     leftover = sum(1 for a in data["annotations"] if a["category_id"] == DUP_ID)
@@ -96,7 +105,7 @@ def main():
     print("Writing corrected JSON...", flush=True)
     tmp = DST + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False)
+        json.dump(data, f, ensure_ascii=False, indent=1)  # line breaks for readability
     os.replace(tmp, DST)
     print(f"Done -> {DST}")
     print(f"  images={len(data['images'])}  annotations={len(data['annotations'])}  "

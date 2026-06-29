@@ -8,6 +8,7 @@ Training image classifier(s) for the LILA [California Small Animals](https://lil
 - COCO Camera Traps format; metadata: `california_small_animals_with_sequences.json`.
 - ~58% empty (`blank` + `misfire`); long-tailed taxonomy (257 source categories, full class/order/family/genus/species on each).
 - Mostly 2048x1440 JPEGs.
+- Raw dataset is in `e:\data\california-small-animals`.
 
 See `analyze_metadata.py` / `analyze_taxonomy.py` (outputs in the output folder) for the full breakdown, and `build_label_map.py` for the source→target category mapping.
 
@@ -28,7 +29,7 @@ Fast config (accuracy-safe): **autocast bf16 (fp32 master) + grad-checkpointing 
 **Run training** (from a WSL shell — the launcher activates the env, cds into the correct folder, and sets the alloc config, and runs `train.py`):
 
 ```
-bash /mnt/c/temp/california-small-animals-output/wsl_train.sh --devices 2 --batch-size 24 --workers 12 --epochs 20 --patience 5 --run-name eva02-20260101
+bash /mnt/c/temp/california-small-animals-output/wsl_train.sh --devices 2 --batch-size 24 --workers 12 --epochs 20 --patience 5 --run-name eva02-20260628
 ```
 
 `--patience 5` enables early stopping on `val/acc_macro` (stops if macro accuracy hasn't improved for 5 epochs); omit it for a fixed `--epochs` run. Each run writes everything to its own folder `runs/<run-name>/` (see "Output folder structure" below); `--run-name` defaults to a timestamp, and the launcher refuses to reuse an existing run folder — pick a new name, or pass `--resume last` to continue an interrupted one. Track progress via `runs/<run-name>/metrics.csv` (or `nvidia-smi`); the best epoch's checkpoint (by `val/acc_macro`) is the one to keep.
@@ -50,6 +51,8 @@ Per-run folder `runs/<run-name>/`:
 - `hparams.yaml` — the run's hyperparameters.
 - `metrics.csv` — train/val metrics (loss, micro/macro accuracy, learning rate).
 - `train_<run-name>.log` — full stdout/stderr log of the run.
+
+Archive folder (`archive`) — one-off scripts, exploratory logs, and throwaway debug/verification outputs. Anything clearly not reusable across runs should go **straight here** rather than the base folder, so the base folder stays limited to the cross-run files listed above. Obvious one-offs — diagnostic/launcher scripts, ad-hoc test or invariance outputs, logs from exploratory work — belong in `archive`; when it's genuinely unclear whether an output will be reused, it's fine to leave it in the base folder. Nothing in `archive` is deleted automatically; the maintainer prunes it manually.  The user may refer to this as the "archive folder" or the "scratch folder".
 
 ### Preprocessing and augmentation
 
@@ -75,11 +78,23 @@ Per-run folder `runs/<run-name>/`:
 - `source_checkpoint`, `epoch`, `global_step` — provenance: which training checkpoint this was derived from.
 - `state_dict` — the timm model weights (the only non-metadata payload).
 
+## Label review / data cleanup
+
+After the first training run we ran a label-cleanup pass focused on **blank ↔ non-blank** ground-truth errors — the most common and most consequential mislabels in this dataset — using the model's own high-confidence disagreements to prioritize what a human looks at. The review outcome is stored back with the data (`E:\data\california-small-animals\manual_review_<date>.json`) because it is a property of the dataset, not of any one run. The analysis/review scripts live in the analysis workspace `C:\temp\california-small-animals-output\archive\data-review\`; the pipeline scripts that consume the result (`copy_resize.py`, `make_gt_coco.py`, `make_val_cct.py`) are in this repo.
+
+1. **Find candidates.** Run the chosen model over the full train+val set (`run_inference.py`) and, with `analyze_blank_confusion.py`, tabulate every image whose top-1 prediction disagrees with the folder label on blank-vs-animal, bucketed by confidence. It writes an HTML report (`blank_confusion_analysis.html`) with per-class / per-confidence-bucket counts where each non-zero count links to a gallery of the actual images (no overlaid annotations) for a quick eyeball.
+2. **Stage full-size images for review.** `copy_review_images.py` copies the full-size originals of every blank↔non-blank mismatch (confidence ≥ 0.5) from the raw data folder into `C:\temp\california-small-animals-image-review`, laid out as `[label]/[prediction]/[bucket]/[location]_[datetime]_[framenum]_[guid].jpg` so they sort by camera then time. It writes `review_manifest.csv` (maps every review path back to the source image + metadata), and `make_timelapse_csv.py` derives a Timelapse-ready `review_manifest_timelapse.csv` (adds `File`/`RelativePath` columns).
+3. **Adjudicate in Timelapse.** Images are reviewed in [Timelapse](https://timelapse.ucalgary.ca/); the reviewer marks an image `incorrect` when the *ground-truth label* is wrong (e.g. labeled `blank` but an animal is clearly present, or vice-versa). An empty outcome means "no decision" (not necessarily confirmed-correct); a `correct` tag is available but has no training impact.
+4. **Record outcomes.** `process_review.py` verifies the Timelapse export used only expected tags, maps the `incorrect` rows back to original filenames via the manifest, and writes `manual_review_<date>.json` = `{ "<original/relpath>": "incorrect", ... }` (the dict form leaves room for additional outcome tags later).
+5. **Re-train on the cleaned set, same split.** The exclusion list is centralized in `label_map.py` (`EXCLUDE_FILES` + `load_excluded_guids()`), and both `copy_resize.py` (regenerating the training tree) and `train.py` (building the train/val image lists in `load_frames()`) drop the flagged images — so the folder and the trainer can't drift, and `split.parquet` stays the immutable locked split (the camera assignment is reused unchanged). `assess_split_impact.py` first confirms no class loses a split or drops to ≤1 location. After regenerating the tree, `make_gt_coco.py` and `make_val_cct.py` rebuild the master train+val GT (`california-small-animals-training.json`) and the val-only GT (`val/val_cct.json`). Both the copy step and the trainer accept `--no-exclude` to fall back to the full uncleaned set if ever needed.
+
+First pass (2026-06-28): 5,743 images excluded — almost all `blank`-labeled frames that actually contained an animal, plus a few animal-labeled frames that were actually empty. The prior training tree was preserved as `F:\data\california-small-animals-training-2026.06.00`.
+
 ## TODO
 
 ### P0
 
-- **Data cleanup:** find images both train and val that are predicted as blank but aren't labeled as blank, assess which are actually blank.  Also vice-versa, for high-confidence non-blank predictions.  Consider re-training after this.
+- **Data cleanup (blank ↔ non-blank): first pass DONE (2026-06-28)** — see "Label review / data cleanup". 5,743 mislabeled images excluded; re-training on the cleaned set. Future: extend the same review workflow to non-blank confusions and other high-confidence disagreements.
 - **Inference-time banner-crop A/B (quick):** evaluate val accuracy with the banner crop on vs off, to pick the inference default and confirm the synthetic-banner augmentation actually makes the model crop-agnostic.
 - **Test on Ohio Small Animals data, consider adding to training**
 - **Test on CCER Small Animals data, consider adding to training**
