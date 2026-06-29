@@ -4,6 +4,8 @@ This repo contains training and evaluation code for an image classifier trained 
 
 This README is not intended (yet) as an external introduction to the project, it's intended as internal book-keeping, so, excuse all the local filenames that have no meaning other than the computer where I'm typing this.
 
+<img src="images/snake~2004886_sa-fcwa4-2024__f53a6408-2130-4dc6-a98a-f9b7d9247e30.jpg">
+
 ## Dataset at a glance
 
 - 2,278,071 images across 701 cameras (each leaf-node folder is a camera deployment/location)
