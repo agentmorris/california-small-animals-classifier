@@ -195,18 +195,19 @@ def run_shard(args):
                      "model_name": ck["model_name"], "epoch": ck.get("epoch")}, f)
 
 
-def run_parallel(args, rels):
+def run_parallel(folder, model, output, batch_size, workers, classifications,
+                 precision, devices, rels):
     """Parent: launch one subprocess per GPU, merge their results in order."""
     tmpdir = tempfile.mkdtemp(prefix="csa_infer_")
     procs = []
     try:
-        for i in range(args.devices):
+        for i in range(devices):
             outp = os.path.join(tmpdir, f"shard_{i}.pkl")
-            cmd = [sys.executable, os.path.abspath(__file__), args.folder, args.model,
-                   args.output, "--batch-size", str(args.batch_size),
-                   "--workers", str(args.workers), "--classifications",
-                   str(args.classifications), "--precision", args.precision,
-                   "--_shard-index", str(i), "--_shard-count", str(args.devices),
+            cmd = [sys.executable, os.path.abspath(__file__), folder, model,
+                   output, "--batch-size", str(batch_size),
+                   "--workers", str(workers), "--classifications",
+                   str(classifications), "--precision", precision,
+                   "--_shard-index", str(i), "--_shard-count", str(devices),
                    "--_shard-output", outp]
             env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(i))
             procs.append((subprocess.Popen(cmd, env=env), outp))
@@ -224,6 +225,40 @@ def run_parallel(args, rels):
                             meta["epoch"], meta["model_name"])
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def run_inference(folder, model, output, batch_size=32, workers=8, classifications=3,
+                  precision="bf16", devices=1):
+    """Run classification inference over `folder` and write a MegaDetector-format JSON to `output`.
+
+    `model` is a path to a *.stripped.ckpt inference checkpoint. Returns (output_dict, n_failures),
+    or None if the folder contains no images.
+    """
+    rels = list_images(folder)
+    print(f"{len(rels):,} images under {folder}  | devices={devices} "
+          f"| batch={batch_size} workers={workers}/gpu "
+          f"top-{classifications} | precision={precision}", flush=True)
+    if not rels:
+        return None
+
+    if devices > 1 and torch.cuda.is_available():
+        out, n_fail = run_parallel(folder, model, output, batch_size, workers,
+                                   classifications, precision, devices, rels)
+    else:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        if precision == "fp32":
+            torch.set_float32_matmul_precision("highest")
+        model_obj, transform, ck = load_model(model, device)
+        n_top = min(classifications, len(ck["classes"]))
+        res = infer(model_obj, transform, ck["img_size"], folder, rels,
+                    batch_size, workers, n_top, precision, device)
+        out, n_fail = build_output(rels, res, ck["classes"],
+                                   os.path.basename(model), ck.get("epoch"),
+                                   ck["model_name"])
+
+    dump_json(out, output)
+    print(f"wrote {output}  ({len(out['images']):,} images, {n_fail} failures)", flush=True)
+    return out, n_fail
 
 
 def main():
@@ -250,29 +285,9 @@ def main():
         run_shard(args)
         return
 
-    rels = list_images(args.folder)
-    print(f"{len(rels):,} images under {args.folder}  | devices={args.devices} "
-          f"| batch={args.batch_size} workers={args.workers}/gpu "
-          f"top-{min(args.classifications, 999)} | precision={args.precision}")
-    if not rels:
-        return
-
-    if args.devices > 1 and torch.cuda.is_available():
-        out, n_fail = run_parallel(args, rels)
-    else:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        if args.precision == "fp32":
-            torch.set_float32_matmul_precision("highest")
-        model, transform, ck = load_model(args.model, device)
-        n_top = min(args.classifications, len(ck["classes"]))
-        res = infer(model, transform, ck["img_size"], args.folder, rels,
-                    args.batch_size, args.workers, n_top, args.precision, device)
-        out, n_fail = build_output(rels, res, ck["classes"],
-                                   os.path.basename(args.model), ck.get("epoch"),
-                                   ck["model_name"])
-
-    dump_json(out, args.output)
-    print(f"wrote {args.output}  ({len(out['images']):,} images, {n_fail} failures)")
+    run_inference(args.folder, args.model, args.output, batch_size=args.batch_size,
+                  workers=args.workers, classifications=args.classifications,
+                  precision=args.precision, devices=args.devices)
 
 
 if __name__ == "__main__":

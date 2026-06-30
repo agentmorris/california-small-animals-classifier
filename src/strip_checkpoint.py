@@ -70,7 +70,8 @@ def strip_one(src, data_cfg_cache, half=False, dst=None):
     if dst is None:
         dst = src[:-len(".ckpt")] + ".stripped.ckpt" if src.endswith(".ckpt") else src + ".stripped.ckpt"
     torch.save(out, dst)
-    return dst, os.path.getsize(src), os.path.getsize(dst), len(model_sd)
+    return (dst, os.path.getsize(src), os.path.getsize(dst), len(model_sd),
+            ckpt.get("epoch"), ckpt.get("global_step"))
 
 
 def main():
@@ -90,7 +91,7 @@ def main():
 
     cache = {}
     for f in files:
-        dst, s0, s1, n = strip_one(f, cache, half=args.half)
+        dst, s0, s1, n, _epoch, _step = strip_one(f, cache, half=args.half)
         print(f"{os.path.basename(f)} -> {os.path.basename(dst)}  "
               f"{s0/1e9:.2f} GB -> {s1/1e9:.2f} GB  ({n} weight tensors)")
 

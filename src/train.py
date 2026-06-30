@@ -29,6 +29,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchmetrics.classification import MulticlassAccuracy
 from PIL import Image
 import timm
+from timm.optim import param_groups_layer_decay
 
 from label_map import OUT, CLASS_ORDER, TRAIN_ROOT, load_excluded_guids
 from transforms import TrainTransform, ValTransform
@@ -151,11 +152,19 @@ def class_weights(train_labels, scheme="sqrt", cap=10.0):
 
 class Classifier(L.LightningModule):
     def __init__(self, model_name, num_classes, lr, weight_decay, label_smoothing,
-                 warmup_epochs, max_epochs, cls_weights, grad_ckpt=True, compile=True):
+                 warmup_epochs, max_epochs, cls_weights, grad_ckpt=True, compile=True,
+                 freeze_backbone=False, layer_decay=1.0, warmup_steps=0):
         super().__init__()
         self.save_hyperparameters(ignore=["cls_weights"])
         self.model = timm.create_model(model_name, pretrained=True,
                                        num_classes=num_classes)
+        if freeze_backbone:
+            # linear probe: freeze the whole backbone, train only the classifier head
+            for p in self.model.parameters():
+                p.requires_grad_(False)
+            for p in self.model.get_classifier().parameters():
+                p.requires_grad_(True)
+            grad_ckpt = False  # no backbone backward -> nothing to checkpoint
         if grad_ckpt and hasattr(self.model, "set_grad_checkpointing"):
             self.model.set_grad_checkpointing(True)
         # Compiled wrapper kept in a plain list so it is NOT registered as a
@@ -170,6 +179,13 @@ class Classifier(L.LightningModule):
 
     def forward(self, x):
         return self._compiled[0](x) if self._compiled is not None else self.model(x)
+
+    def train(self, mode=True):
+        # keep a frozen backbone in eval mode (deterministic features: no drop_path/dropout)
+        super().train(mode)
+        if mode and self.hparams.freeze_backbone:
+            self.model.eval()
+        return self
 
     def training_step(self, batch, _):
         x, y = batch
@@ -191,15 +207,39 @@ class Classifier(L.LightningModule):
         self.log("val/acc_macro", self.val_macro, prog_bar=True)
 
     def configure_optimizers(self):
-        opt = torch.optim.AdamW(self.parameters(), lr=self.hparams.lr,
-                                weight_decay=self.hparams.weight_decay)
-        warmup = torch.optim.lr_scheduler.LinearLR(
-            opt, start_factor=0.01, total_iters=max(1, self.hparams.warmup_epochs))
-        cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
-            opt, T_max=max(1, self.hparams.max_epochs - self.hparams.warmup_epochs))
-        sched = torch.optim.lr_scheduler.SequentialLR(
-            opt, [warmup, cosine], milestones=[self.hparams.warmup_epochs])
-        return {"optimizer": opt, "lr_scheduler": {"scheduler": sched, "interval": "epoch"}}
+        base_lr, wd = self.hparams.lr, self.hparams.weight_decay
+
+        if self.hparams.freeze_backbone:
+            # linear probe: only the (unfrozen) head params go to the optimizer
+            params = [p for p in self.parameters() if p.requires_grad]
+            opt = torch.optim.AdamW(params, lr=base_lr, weight_decay=wd)
+        elif self.hparams.layer_decay and self.hparams.layer_decay < 1.0:
+            # layer-wise LR decay: bake per-layer lr into each group so the standard
+            # warmup/cosine schedulers (which scale every group's initial_lr by the same
+            # factor) preserve the per-layer ratios.
+            groups = param_groups_layer_decay(
+                self.model, weight_decay=wd, layer_decay=self.hparams.layer_decay,
+                no_weight_decay_list=self.model.no_weight_decay())
+            for g in groups:
+                g["lr"] = base_lr * g.get("lr_scale", 1.0)
+            opt = torch.optim.AdamW(groups, lr=base_lr, weight_decay=wd)
+        else:
+            opt = torch.optim.AdamW(self.parameters(), lr=base_lr, weight_decay=wd)
+
+        L = torch.optim.lr_scheduler
+        if self.hparams.warmup_steps and self.hparams.warmup_steps > 0:
+            total = max(2, int(self.trainer.estimated_stepping_batches))
+            wu = min(self.hparams.warmup_steps, total - 1)
+            warmup = L.LinearLR(opt, start_factor=0.01, total_iters=wu)
+            cosine = L.CosineAnnealingLR(opt, T_max=max(1, total - wu))
+            sched = L.SequentialLR(opt, [warmup, cosine], milestones=[wu])
+            interval = "step"
+        else:
+            warmup = L.LinearLR(opt, start_factor=0.01, total_iters=max(1, self.hparams.warmup_epochs))
+            cosine = L.CosineAnnealingLR(opt, T_max=max(1, self.hparams.max_epochs - self.hparams.warmup_epochs))
+            sched = L.SequentialLR(opt, [warmup, cosine], milestones=[self.hparams.warmup_epochs])
+            interval = "epoch"
+        return {"optimizer": opt, "lr_scheduler": {"scheduler": sched, "interval": interval}}
 
 
 def main():
@@ -239,6 +279,16 @@ def main():
                     help="if >0, also write this many EXTRA weights-only checkpoints spread through "
                          "each epoch, at i/(N+1) of the way (N=1 -> halfway; N=2 -> 1/3 and 2/3; "
                          "N=8 -> 1/9..8/9). The usual full epoch-end checkpoints are still written.")
+    ap.add_argument("--freeze-backbone", action="store_true",
+                    help="linear-probe mode: freeze the backbone (kept in eval), train only the "
+                         "classifier head. Pair with a higher --lr (e.g. 1e-3).")
+    ap.add_argument("--layer-decay", type=float, default=1.0,
+                    help="layer-wise LR decay for full fine-tuning (e.g. 0.75): early blocks get "
+                         "exponentially smaller LR. 1.0 disables it; ignored with --freeze-backbone.")
+    ap.add_argument("--warmup-steps", type=int, default=0,
+                    help="if >0, use a step-based LR schedule (this many warmup steps, then cosine "
+                         "over the remaining steps). Recommended; otherwise warmup is the legacy "
+                         "per-epoch --warmup-epochs.")
     args = ap.parse_args()
 
     # Per-run output folder: runs/<run-name>/ holds checkpoints/, metrics.csv,
@@ -305,7 +355,10 @@ def main():
     model = Classifier(args.model, len(CLASS_ORDER), args.lr, args.weight_decay,
                        args.label_smoothing, args.warmup_epochs, args.epochs,
                        cls_w, grad_ckpt=not args.no_grad_ckpt,
-                       compile=not args.no_compile)
+                       compile=not args.no_compile,
+                       freeze_backbone=args.freeze_backbone,
+                       layer_decay=args.layer_decay,
+                       warmup_steps=args.warmup_steps)
 
     ckpt = ModelCheckpoint(dirpath=ckpt_dir, filename=run_name + "-{epoch:02d}",
                            every_n_epochs=1, save_top_k=-1, save_last=True,

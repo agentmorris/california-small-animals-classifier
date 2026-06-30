@@ -74,7 +74,7 @@ def main():
         raise SystemExit(f"best checkpoint missing: {src}")
 
     dst = os.path.join(run_dir, f"{args.run_name}.best.epoch{nn}.stripped.pt")
-    out, s0, s1, n = strip_one(src, {}, half=args.half, dst=dst)
+    out, s0, s1, n, _epoch, _step = strip_one(src, {}, half=args.half, dst=dst)
     print(f"best epoch {nn}  ({METRIC}={by_epoch[best][1]:.6f})")
     print(f"wrote {out}")
     print(f"  {os.path.basename(src)}  {s0/1e9:.2f} GB -> {s1/1e9:.2f} GB  ({n} weight tensors)")

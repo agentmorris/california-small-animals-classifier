@@ -37,7 +37,7 @@ Performance notes: `torch.compile` + DDP needs `torch._dynamo.config.optimize_dd
 
 From a WSL shell; the launcher activates the env, cds into the correct folder, and sets the alloc config, and runs `train.py`)...
 
-```
+```bash
 export RUN_NAME="eva02-20260628"
 bash /mnt/c/temp/california-small-animals-output/wsl_train.sh --devices 2 --batch-size 24 --workers 12 --epochs 20 --patience 5 --intermediate-checkpoints-per-epoch 8 --run-name ${RUN_NAME} --checkpoint_-folder ~/data/checkpoints-${RUN_NAME}
 ```
@@ -47,6 +47,19 @@ bash /mnt/c/temp/california-small-animals-output/wsl_train.sh --devices 2 --batc
 `--checkpoints-folder` allows checkpoints to written to a temporary location that's different than the final output folder, useful when training on WSL but planning to move everything to a Windows drive (writing checkpoints across a Windows mount has a habit of freezing PyTorch).
 
 `--patience 5` enables early stopping on `val/acc_macro` (stops if macro accuracy hasn't improved for 5 epochs); omit it for a fixed `--epochs` run. Each run writes everything to its own folder `runs/<run-name>/` (see "Output folder structure" below); `--run-name` defaults to a timestamp, and the launcher refuses to reuse an existing run folder.  Track progress via `runs/<run-name>/metrics.csv` (or `nvidia-smi`); the best epoch's checkpoint (by `val/acc_macro`) is the one to keep.
+
+For a head-only training run (linear probe):
+
+```bash
+export RUN_NAME="eva02-20260629-lp"
+bash /mnt/c/temp/california-small-animals-output/wsl_train.sh \
+  --devices 2 --batch-size 24 --workers 12 \
+  --freeze-backbone --lr 1e-3 --warmup-steps 200 \
+  --epochs 4 --patience 2 \
+  --intermediate-checkpoints-per-epoch 8 \
+  --checkpoint-folder ~/data/checkpoints-${RUN_NAME} \
+  --run-name ${RUN_NAME}
+```
 
 ### Resuming training
 
@@ -74,9 +87,26 @@ watch -n 10 tail -n 20 /mnt/c/temp/california-small-animals-output/runs/${RUN_NA
 
 ### When training finishes
 
+#### Computing accuracy metrics for all checkpoints
+
+Because the model tends to peak within the first epoch (and we write extra intermediate checkpoints through each epoch via `--intermediate-checkpoints-per-epoch`), we want validation accuracy for *every* checkpoint, not just the once-per-epoch numbers in `metrics.csv`. `evaluate_all_checkpoints.py` does that: it takes a checkpoint folder, an image folder, a ground-truth COCO file, and an output folder, and for each `*.ckpt` it strips the checkpoint to a temporary inference checkpoint (via `strip_checkpoint.py`), runs inference (via `run_inference.py`, sharding across GPUs with `--devices`), writes a MegaDetector-format results file into the output folder, and scores it against the ground truth (micro accuracy and macro / mean-per-class recall, compared by class name).
+
+```bash
+python evaluate_all_checkpoints.py \
+  C:\temp\california-small-animals-output\runs\eva02-20260629-lp\checkpoints \
+  F:\data\california-small-animals-training\val \
+  F:\data\california-small-animals-training\val\val_cct.json \
+  C:\temp\california-small-animals-output\runs\eva02-20260629-lp\eval \
+  --devices 2
+```
+
+It runs on native Windows (like all our inference). The output folder ends up with one `<checkpoint-stem>.json` per checkpoint plus `accuracy_by_checkpoint.csv`, which has one row per checkpoint with columns `checkpoint_filename`, `checkpoint_index`, `accuracy` (micro), and `macro_accuracy`. `checkpoint_index` is -1 for `last.ckpt` and the 0-based training order (by `global_step`) for the rest, so sorting by it gives the chronological accuracy curve across both the intermediate and end-of-epoch checkpoints. The pass-through flags `--batch-size`, `--workers`, `--precision`, `--classifications`, and `--devices` are forwarded to each `run_inference` call (in practice only `--devices 2` is changed from the defaults; `run_inference` handles the multi-GPU split, so this script does not parallelize on its own). The run is resumable: a checkpoint whose results JSON already exists is re-scored without re-running inference, so delete a JSON to force its recomputation. Expect roughly 15 to 20 minutes per checkpoint over the full val set at `--devices 2`.
+
+#### Extracting the best checkpoint
+
 After a run finishes (or you stop it early), the usual next step is to extract the single best epoch as a compact, inference-ready checkpoint. `copy_best_checkpoint.py <run-name>` does this: it finds the epoch with the highest `val/acc_macro`, strips the optimizer/scheduler/callback state from that epoch's checkpoint (reusing `strip_checkpoint.py`), and writes `<run-name>.best.epochNN.stripped.pt` to the run-folder root. That `.stripped.pt` is the self-describing inference format documented under "Inference-ready checkpoints", and is what `run_inference.py` consumes. The script errors if the chosen epoch's checkpoint is missing; pass `--half` to store fp16 weights.
 
-```
+```bash
 python copy_best_checkpoint.py eva02-20260628
 ```
 
@@ -87,6 +117,7 @@ It reads every `metrics*.csv` in the run folder, not just `metrics.csv`, because
 The base output folder `C:\temp\california-small-animals-output` (`/mnt/c/temp/...` in WSL) holds only cross-run files; everything produced by a single training run lives under `runs/<run-name>/`.
 
 Base folder — shared across all runs (six files):
+
 - `split.parquet` — per-image train/val assignment + resized-image paths; read by `train.py` on every run.
 - `manifest.parquet` — per-image source-of-truth manifest (kept images, labels, camera, sequence); input to `make_split.py`.
 - `camera_split.parquet` — the locked camera→split (train/val) assignment.
@@ -95,6 +126,7 @@ Base folder — shared across all runs (six files):
 - `wsl_train.sh` — the training launcher.
 
 Per-run folder `runs/<run-name>/`:
+
 - `checkpoints/` — per-epoch checkpoints (`<run-name>-NN.ckpt`) plus `last.ckpt`.
 - `hparams.yaml` — the run's hyperparameters.
 - `metrics.csv` — train/val metrics (loss, micro/macro accuracy, learning rate).
@@ -142,6 +174,8 @@ First pass (2026-06-28): 5,743 images excluded — almost all `blank`-labeled fr
 
 ### P0
 
+- **Explore overfitting:**: results are good, but training is overfitting quickly (peaking at epoch 0), consider (a) intermediate checkpointing, (b) layer freezing, and/or (c) linear probe with high learning rate followed by wider training with a low learning rate
+- **Add background worker loading/preprocessing to inference script**
 - **Data cleanup (blank ↔ non-blank).** First pass DONE (2026-06-28); see "Label review / data cleanup". 5,743 mislabeled images excluded; re-training on the cleaned set. Future: extend the same review workflow to non-blank confusions and other high-confidence disagreements.
 - **Inference-time banner-crop A/B (quick):** evaluate val accuracy with the banner crop on vs off, to pick the inference default and confirm the synthetic-banner augmentation actually makes the model crop-agnostic.
 - **Test on Ohio Small Animals data, consider adding to training**
@@ -151,7 +185,6 @@ First pass (2026-06-28): 5,743 images excluded — almost all `blank`-labeled fr
 ### P1
 
 - **Add checkpointing to inference script**
-- **Layer freezing:**: training appears to be overfitting quickly, consider keeping eva02_large@448 but freezing many layers
 - **Reduce penalties for partial mistakes**: consider adjusting the loss function so that for, e.g., a specific rodent species, predicting "other rodent" is penalized less than predicting "bird"
 - **New CDFW data:** Talk to CDFW about pulling in additional data
 - **Architecture A/B (if we want to push accuracy past eva02_large@448):** candidates to prioritize, roughly in order —
