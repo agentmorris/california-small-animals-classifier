@@ -91,7 +91,7 @@ For a head-only training run (linear probe):
 
 ```bash
 export RUN_NAME="eva02-20260629-lp"
-train.sh \
+./train.sh \
   --devices 2 --batch-size 24 --workers 12 \
   --freeze-backbone --lr 1e-3 --warmup-steps 200 \
   --epochs 4 --patience 2 \
@@ -221,7 +221,7 @@ First pass (2026-06-28): 5,743 images excluded — almost all `blank`-labeled fr
 
 ```bash  
 export RUN_NAME="eva02-20260630-llrd"
-train.sh --path-config configs/ubuntu-gpu.json --run-name eva02-20260630-llrd \
+./train.sh --path-config configs/ubuntu-gpu.json --run-name eva02-20260630-llrd \
   --devices 2 --batch-size 24 --workers 12 \
   --layer-decay 0.75 --lr 1e-4 --warmup-steps 500 --epochs 8 --patience 3 \
   --intermediate-checkpoints-per-epoch 8
