@@ -31,11 +31,10 @@ from PIL import Image
 import timm
 from timm.optim import param_groups_layer_decay
 
-from label_map import OUT, CLASS_ORDER, TRAIN_ROOT, load_excluded_guids
+from label_map import CLASS_ORDER
+from path_config import load_path_config, load_excluded_guids
 from transforms import TrainTransform, ValTransform
 
-SPLIT = os.path.join(OUT, "split.parquet")
-RUNS_DIR = os.path.join(OUT, "runs")   # each run lives in runs/<run-name>/
 CLASS_TO_IDX = {c: i for i, c in enumerate(CLASS_ORDER)}
 
 
@@ -120,16 +119,16 @@ class CSADataset(Dataset):
         raise RuntimeError(f"could not load image near index {i}")
 
 
-def load_frames(apply_exclude=True):
-    df = pd.read_parquet(SPLIT, columns=["image_id", "dest_rel", "target_class", "split"])
+def load_frames(split_path, train_root, exclude_files, apply_exclude=True):
+    df = pd.read_parquet(split_path, columns=["image_id", "dest_rel", "target_class", "split"])
     if apply_exclude:
-        excluded = load_excluded_guids()
+        excluded = load_excluded_guids(exclude_files)
         if excluded:
             before = len(df)
             df = df[~df.image_id.isin(excluded)]
             print(f"manual-review: dropped {before - len(df):,} excluded images")
     df["label"] = df["target_class"].astype(str).map(CLASS_TO_IDX).astype(int)
-    df["path"] = [os.path.join(TRAIN_ROOT, d.replace("/", os.sep)) for d in df.dest_rel]
+    df["path"] = [os.path.join(train_root, d.replace("/", os.sep)) for d in df.dest_rel]
     return df[df.split == "train"], df[df.split == "val"]
 
 
@@ -244,6 +243,9 @@ class Classifier(L.LightningModule):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--path-config", required=True,
+                    help="JSON file of machine-specific paths (OUT, TRAIN_ROOT, EXCLUDE_FILES, ...); "
+                         "see path_config.example.json")
     ap.add_argument("--model", default="eva02_large_patch14_448.mim_m38m_ft_in22k_in1k")
     ap.add_argument("--img-size", type=int, default=448)
     ap.add_argument("--batch-size", type=int, default=24, help="per GPU")
@@ -261,8 +263,8 @@ def main():
                     help="disable torch.compile (compile is on by default)")
     ap.add_argument("--benchmark-steps", type=int, default=0,
                     help="if >0, run only this many train steps (throughput probe)")
-    ap.add_argument("--run-name", default=None,
-                    help="run folder name under runs/; default = timestamp")
+    ap.add_argument("--run-name", required=True,
+                    help="run folder name under <OUT>/runs/")
     ap.add_argument("--resume", default=None,
                     help="checkpoint path, or 'last' to resume from checkpoints/last.ckpt")
     ap.add_argument("--patience", type=int, default=0,
@@ -291,14 +293,14 @@ def main():
                          "per-epoch --warmup-epochs.")
     args = ap.parse_args()
 
+    cfg = load_path_config(args.path_config)
+    split_path = os.path.join(cfg.OUT, "split.parquet")
+    runs_dir = os.path.join(cfg.OUT, "runs")   # each run lives in runs/<run-name>/
+
     # Per-run output folder: runs/<run-name>/ holds checkpoints/, metrics.csv,
-    # hparams.yaml, and (via the launcher) the train log. Auto-name with a
-    # timestamp when unset; share the resolved name with DDP-spawned subprocesses
-    # via an env var so every rank uses the same folder.
-    run_name = (args.run_name or os.environ.get("CSA_RUN_NAME")
-                or datetime.datetime.now().strftime("%Y.%m.%d.%H.%M.%S"))
-    os.environ["CSA_RUN_NAME"] = run_name
-    run_dir = os.path.join(RUNS_DIR, run_name)
+    # hparams.yaml, and (via the launcher) the train log.
+    run_name = args.run_name
+    run_dir = os.path.join(runs_dir, run_name)
     final_ckpt_dir = os.path.join(run_dir, "checkpoints")  # durable home, in the run folder
     # Optionally write checkpoints to a separate (e.g. fast WSL-local) folder during the run so the
     # big per-epoch writes don't hit the slow/9p run folder; moved into the run folder at the end of
@@ -325,7 +327,8 @@ def main():
     if not args.no_compile and args.devices > 1:
         torch._dynamo.config.optimize_ddp = False
 
-    train_df, val_df = load_frames(apply_exclude=not args.no_exclude)
+    train_df, val_df = load_frames(split_path, cfg.TRAIN_ROOT, cfg.EXCLUDE_FILES,
+                                   apply_exclude=not args.no_exclude)
 
     # resolve normalization from the actual model cfg
     tmp = timm.create_model(args.model, pretrained=False, num_classes=len(CLASS_ORDER))

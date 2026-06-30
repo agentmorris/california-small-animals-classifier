@@ -17,10 +17,9 @@ from multiprocessing import Pool
 import pandas as pd
 from PIL import Image
 
-from label_map import OUT, IMAGE_ROOT, CLASS_ORDER, EXCLUDE_FILES, load_excluded_guids
+from label_map import CLASS_ORDER
+from path_config import load_path_config, load_excluded_guids
 
-TRAIN_ROOT = r"F:\data\california-small-animals-training"
-SPLIT = os.path.join(OUT, "split.parquet")
 SHORT_SIDE = 512
 QUALITY = 90
 
@@ -48,19 +47,23 @@ def process(task):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--path-config", required=True,
+                    help="JSON file of machine paths (OUT, IMAGE_ROOT, TRAIN_ROOT, EXCLUDE_FILES)")
     ap.add_argument("--test", type=int, default=0,
                     help="process only N randomly-sampled images")
     ap.add_argument("--workers", type=int, default=os.cpu_count())
     ap.add_argument("--exclude", action="append", default=None,
-                    help=f"manual-review JSON(s); images marked 'incorrect' are dropped "
-                         f"(default: {EXCLUDE_FILES})")
+                    help="manual-review JSON(s); images marked 'incorrect' are dropped "
+                         "(default: the path-config's EXCLUDE_FILES)")
     ap.add_argument("--no-exclude", action="store_true",
                     help="ignore manual-review exclusions (copy every image in the split)")
     args = ap.parse_args()
 
-    df = pd.read_parquet(SPLIT)
+    cfg = load_path_config(args.path_config)
+    image_root, train_root = cfg.IMAGE_ROOT, cfg.TRAIN_ROOT
+    df = pd.read_parquet(os.path.join(cfg.OUT, "split.parquet"))
 
-    exclude_paths = [] if args.no_exclude else (args.exclude or EXCLUDE_FILES)
+    exclude_paths = [] if args.no_exclude else (args.exclude or cfg.EXCLUDE_FILES)
     if exclude_paths:
         excluded = load_excluded_guids(exclude_paths)
         before = len(df)
@@ -69,16 +72,16 @@ def main():
 
     if args.test:
         df = df.sample(args.test, random_state=0)
-    print(f"{len(df):,} images, {args.workers} workers -> {TRAIN_ROOT}")
+    print(f"{len(df):,} images, {args.workers} workers -> {train_root}")
 
-    # create the 60 class dirs up front (flat layout: files go directly inside)
+    # create the class dirs up front (flat layout: files go directly inside)
     for split in ("train", "val"):
         for cls in CLASS_ORDER:
-            os.makedirs(os.path.join(TRAIN_ROOT, split, cls), exist_ok=True)
+            os.makedirs(os.path.join(train_root, split, cls), exist_ok=True)
 
     tasks = [
-        (os.path.join(IMAGE_ROOT, fn.replace("/", os.sep)),
-         os.path.join(TRAIN_ROOT, dest.replace("/", os.sep)))
+        (os.path.join(image_root, fn.replace("/", os.sep)),
+         os.path.join(train_root, dest.replace("/", os.sep)))
         for fn, dest in zip(df.file_name, df.dest_rel)
     ]
 
@@ -101,7 +104,7 @@ def main():
     print(f"\nDone in {dt/60:.1f} min: ok={counts['ok']:,} skip={counts['skip']:,} "
           f"err={counts['err']:,}  ({len(tasks)/dt:.0f} img/s)")
     if errors:
-        log = os.path.join(OUT, "copy_resize_errors.txt")
+        log = os.path.join(cfg.OUT, "copy_resize_errors.txt")
         with open(log, "w", encoding="utf-8") as f:
             f.write("\n".join(errors))
         print(f"wrote {len(errors)} errors -> {log}")

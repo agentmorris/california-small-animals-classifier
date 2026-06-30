@@ -27,19 +27,47 @@ See `analyze_metadata.py` / `analyze_taxonomy.py` (in the output folder) for the
 
 ### Training environment
 
-Native Windows PyTorch is missing FlashAttention/mem-efficient SDPA (falls back to the slow math kernel), Triton (so `torch.compile` won't run), and NCCL (gloo-only multi-GPU). Measured eva02_large@448 at only ~20 img/s/GPU on Windows. Training therefore runs in WSL (Ubuntu, conda env `california-small-animals-wsl`), which has all three. Data is read from `/mnt/f`; logs/checkpoints go to `/mnt/c/temp/california-small-animals-output`. Launch via `wsl_train.sh`.
+Native Windows PyTorch is missing FlashAttention/mem-efficient SDPA (falls back to the slow math kernel), Triton (so `torch.compile` won't run), and NCCL (gloo-only multi-GPU). Measured eva02_large@448 at only ~20 img/s/GPU on Windows. Training therefore runs in WSL (Ubuntu, conda env `california-small-animals-wsl`), which has all three. Data is read from `/mnt/f`; logs/checkpoints go to `/mnt/c/temp/california-small-animals-output`. Launch via `train.sh`.
 
 Fast config (accuracy-safe): autocast bf16 (fp32 master) + grad-checkpointing + `torch.compile` → \~37 img/s/GPU (vs 22 uncompiled). 
 
 Performance notes: `torch.compile` + DDP needs `torch._dynamo.config.optimize_ddp = False` (DDPOptimizer chokes on EVA's rope/SDPA subgraph); `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` avoids compile-time fragmentation OOMs; per-GPU batch 24. Measured \~64 img/s on 2 GPUs (both \~100% util, \~12 GB each), \~4.2 h/epoch (18,618 steps).
 
+### The path config file
+
+All machine-specific absolute paths live in a small JSON file passed to every script via `--path-config`, so nothing under `src/` (or `train.sh`) hard-codes a path and the same code runs unchanged on any machine. `src/path_config.py` loads and validates it; `train.sh` reads `OUT` from it to place the run folder.
+
+It is per *environment*, not just per machine: `wingpu` runs training under WSL (`/mnt/...` paths) but eval under native Windows (drive-letter paths), so it keeps two files, `configs/wingpu-wsl.json` and `configs/wingpu-windows.json`; `ubuntu-gpu` (native Linux) needs only one. A template lives at `path_config.example.json`; the real configs are gitignored (anything matching `path_config*.json` other than the example, plus `configs/`).
+
+Required keys (all must be present):
+
+- `META`: the COCO Camera Traps metadata JSON.
+- `IMAGE_ROOT`: root of the original (full-size) image tree.
+- `OUT`: output base folder (holds `runs/`, `split.parquet`, `manifest.parquet`, the locked split, etc.).
+- `TRAIN_ROOT`: root of the resized train/val tree.
+- `EXCLUDE_FILES`: list of manual-review JSON files (see "Label review / data cleanup"); images marked `incorrect` are dropped from training. Use `[]` for none, but the key is still required. To reproduce the cleaned training set on another machine, copy the review JSON over and point this at it.
+
+Each script reads only the keys it needs (e.g. `train.py` uses `OUT`, `TRAIN_ROOT`, and `EXCLUDE_FILES`), but all keys are required so one file fully describes a machine/environment. Example:
+
+```json
+{
+ "META": "E:\\data\\california-small-animals\\california_small_animals_with_sequences.json",
+ "IMAGE_ROOT": "E:\\data\\california-small-animals",
+ "OUT": "C:\\temp\\california-small-animals-output",
+ "TRAIN_ROOT": "F:\\data\\california-small-animals-training",
+ "EXCLUDE_FILES": [
+  "E:\\data\\california-small-animals\\manual_review_20260628.json"
+ ]
+}
+```
+
 ### Starting training
 
-From a WSL shell; the launcher activates the env, cds into the correct folder, and sets the alloc config, and runs `train.py`)...
+From a WSL shell, in the repo root, in a conda environment with requirements.txt installed:
 
 ```bash
-export RUN_NAME="eva02-20260628"
-bash /mnt/c/temp/california-small-animals-output/wsl_train.sh --devices 2 --batch-size 24 --workers 12 --epochs 20 --patience 5 --intermediate-checkpoints-per-epoch 8 --run-name ${RUN_NAME} --checkpoint_-folder ~/data/checkpoints-${RUN_NAME}
+export RUN_NAME="eva02-20260630-base-repro"
+train.sh --devices 2 --batch-size 24 --workers 12 --epochs 20 --patience 3 --intermediate-checkpoints-per-epoch 8 --run-name ${RUN_NAME} --checkpoint_-folder ~/data/checkpoints-${RUN_NAME} --path-config configs/wingpu-wsl.json
 ```
 
 `--intermediate-checkpoints-per-epoch` enables weights-only checkpoints during each epoch, in addition to the checkpoints written at the end of each epoch.  These are used for post-hoc evaluation of whether validation accuracy is significantly peaking mid-epoch.
@@ -48,18 +76,35 @@ bash /mnt/c/temp/california-small-animals-output/wsl_train.sh --devices 2 --batc
 
 `--patience 5` enables early stopping on `val/acc_macro` (stops if macro accuracy hasn't improved for 5 epochs); omit it for a fixed `--epochs` run. Each run writes everything to its own folder `runs/<run-name>/` (see "Output folder structure" below); `--run-name` defaults to a timestamp, and the launcher refuses to reuse an existing run folder.  Track progress via `runs/<run-name>/metrics.csv` (or `nvidia-smi`); the best epoch's checkpoint (by `val/acc_macro`) is the one to keep.
 
+Other options passed through to the optimizer:
+
+* `--lr`: base learning rate that takes effect after warmup, default 1e-4
+* `--weight-decay`: AdamW weight decay (helps avoid large weights, at the risk of underfitting), default 0.05
+* `--label-smoothing`: softens cross entry loss, stops the model from fully trusting any single possibly-wrong label, default 0.1
+* `--weight-scheme`: how per-class loss weights are set to counter the long tail (none will favorite common classes, inv upweights rare classes, sqrt in between.  Default sqrt (choices ["none", "sqrt", "inv"]).
+* `--freeze-backbone`: train only the classifier head, default False
+* `--layer-decay`: turns on layer-wise learning rate decay; learning rate shrinks exponentially toward the input end of the backbone (e.g. `--layer-decay` 0.75 would scale from 1e-4 to 7.5e-8) (default 1.0 == no decay)
+* `--warmup-epochs`: number of epochs to spend at a fraction of the base LR (currently 1% of base LR, hard-coded), default 1 epoch
+* `--warmup-steps`: warm up for a number of steps, rather than a number of epochs, default 0 (unused)
+
 For a head-only training run (linear probe):
 
 ```bash
 export RUN_NAME="eva02-20260629-lp"
-bash /mnt/c/temp/california-small-animals-output/wsl_train.sh \
+train.sh \
   --devices 2 --batch-size 24 --workers 12 \
   --freeze-backbone --lr 1e-3 --warmup-steps 200 \
   --epochs 4 --patience 2 \
   --intermediate-checkpoints-per-epoch 8 \
   --checkpoint-folder ~/data/checkpoints-${RUN_NAME} \
-  --run-name ${RUN_NAME}
+  --run-name ${RUN_NAME} \
+  --path-config configs/wingpu-wsl.json
 ```
+
+### Hyperparameter notes
+
+* The default learning rate schedule looks like [1e-6, 1-e4, 9.93e-5, 9.73e-5, 9.40e-5, 8.95e-5].  This is what we used for eva02-20260628.  78% macro accuracy.
+
 
 ### Resuming training
 
@@ -72,7 +117,6 @@ On resume, the existing `metrics.csv` is first copied to a timestamped `metrics.
 #### Debug output
 
 ```bash
-export RUN_NAME="eva02-20260628"
 watch -n 10 tail -n 20 /mnt/c/temp/california-small-animals-output/runs/${RUN_NAME}/train_${RUN_NAME}.log
 ```
 
@@ -81,7 +125,6 @@ watch -n 10 tail -n 20 /mnt/c/temp/california-small-animals-output/runs/${RUN_NA
 Training losses are updated every batch, validation metrics are written every epoch.
 
 ```bash
-export RUN_NAME="eva02-20260628"
 watch -n 10 tail -n 20 /mnt/c/temp/california-small-animals-output/runs/${RUN_NAME}/metrics.csv
 ```
 
@@ -92,11 +135,11 @@ watch -n 10 tail -n 20 /mnt/c/temp/california-small-animals-output/runs/${RUN_NA
 Because the model tends to peak within the first epoch (and we write extra intermediate checkpoints through each epoch via `--intermediate-checkpoints-per-epoch`), we want validation accuracy for *every* checkpoint, not just the once-per-epoch numbers in `metrics.csv`. `evaluate_all_checkpoints.py` does that: it takes a checkpoint folder, an image folder, a ground-truth COCO file, and an output folder, and for each `*.ckpt` it strips the checkpoint to a temporary inference checkpoint (via `strip_checkpoint.py`), runs inference (via `run_inference.py`, sharding across GPUs with `--devices`), writes a MegaDetector-format results file into the output folder, and scores it against the ground truth (micro accuracy and macro / mean-per-class recall, compared by class name).
 
 ```bash
-python evaluate_all_checkpoints.py \
-  C:\temp\california-small-animals-output\runs\eva02-20260629-lp\checkpoints \
-  F:\data\california-small-animals-training\val \
-  F:\data\california-small-animals-training\val\val_cct.json \
-  C:\temp\california-small-animals-output\runs\eva02-20260629-lp\eval \
+python evaluate_all_checkpoints.py ^
+  "c:\temp\california-small-animals-output\runs\eva02-20260629-lp\checkpoints" ^
+  "c:\data\california-small-animals-training\val" ^
+  "f:\data\california-small-animals-training\val\val_cct.json" ^
+  "c:\temp\california-small-animals-output\runs\eva02-20260629-lp\eval" ^
   --devices 2
 ```
 
@@ -107,7 +150,7 @@ It runs on native Windows (like all our inference). The output folder ends up wi
 After a run finishes (or you stop it early), the usual next step is to extract the single best epoch as a compact, inference-ready checkpoint. `copy_best_checkpoint.py <run-name>` does this: it finds the epoch with the highest `val/acc_macro`, strips the optimizer/scheduler/callback state from that epoch's checkpoint (reusing `strip_checkpoint.py`), and writes `<run-name>.best.epochNN.stripped.pt` to the run-folder root. That `.stripped.pt` is the self-describing inference format documented under "Inference-ready checkpoints", and is what `run_inference.py` consumes. The script errors if the chosen epoch's checkpoint is missing; pass `--half` to store fp16 weights.
 
 ```bash
-python copy_best_checkpoint.py eva02-20260628
+python copy_best_checkpoint.py ${RUN_NAME}
 ```
 
 It reads every `metrics*.csv` in the run folder, not just `metrics.csv`, because a resumed run spreads its per-epoch history across multiple files (see "Resuming training"). If the same epoch appears in more than one file (an abandoned attempt plus its post-resume redo), the highest-`step` row wins so the score matches the checkpoint actually on disk; ties on `val/acc_macro` go to the later epoch.
@@ -174,7 +217,16 @@ First pass (2026-06-28): 5,743 images excluded — almost all `blank`-labeled fr
 
 ### P0
 
-- **Explore overfitting:**: results are good, but training is overfitting quickly (peaking at epoch 0), consider (a) intermediate checkpointing, (b) layer freezing, and/or (c) linear probe with high learning rate followed by wider training with a low learning rate
+- **Explore overfitting:**: results are good, but training is overfitting quickly (peaking at epoch 0), consider (a) intermediate checkpointing, (b) layer freezing, and/or (c) linear probe with high learning rate followed by wider training with a low learning rate.  Specifically an LLRD (layer-wise learning rate decay) experiment, where we enable `--layer-decay` and shorten warmup from a full epoch to just 500 steps (previous experiments showed very fast convergence to an optimal warmup results):
+
+```bash  
+export RUN_NAME="eva02-20260630-llrd"
+train.sh --path-config configs/ubuntu-gpu.json --run-name eva02-20260630-llrd \
+  --devices 2 --batch-size 24 --workers 12 \
+  --layer-decay 0.75 --lr 1e-4 --warmup-steps 500 --epochs 8 --patience 3 \
+  --intermediate-checkpoints-per-epoch 8
+```
+
 - **Add background worker loading/preprocessing to inference script**
 - **Data cleanup (blank ↔ non-blank).** First pass DONE (2026-06-28); see "Label review / data cleanup". 5,743 mislabeled images excluded; re-training on the cleaned set. Future: extend the same review workflow to non-blank confusions and other high-confidence disagreements.
 - **Inference-time banner-crop A/B (quick):** evaluate val accuracy with the banner crop on vs off, to pick the inference default and confirm the synthetic-banner augmentation actually makes the model crop-agnostic.

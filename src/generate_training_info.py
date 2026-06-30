@@ -4,13 +4,15 @@ source-category -> training-class assignments.
 Writes training_info.<YYYYMMDD>.json into the repo. Reproducible from the fixed
 metadata + the split artifacts in the output folder.
 """
+import argparse
 import json
 import os
 from collections import defaultdict, OrderedDict
 
 import pandas as pd
 
-from label_map import META, OUT, CLASS_ORDER, target_class
+from label_map import CLASS_ORDER, target_class
+from path_config import load_path_config
 from make_split import VAL_FRAC, BLANK_FRAMES_PER_SEQ, BLANK_CAP_PER_CAM, SEED
 
 DATE = "20260608"
@@ -29,6 +31,12 @@ EXCLUDE_REASONS = {
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--path-config", required=True, help="JSON file of machine paths (META, OUT)")
+    args = ap.parse_args()
+    cfg = load_path_config(args.path_config)
+    META, OUT = cfg.META, cfg.OUT
+
     with open(META, encoding="utf-8") as f:
         data = json.load(f)
     cats = data["categories"]

@@ -1,38 +1,12 @@
-"""Canonical source-category -> first-pass target-class mapping.
+"""Canonical source-category -> first-pass target-class mapping (labels only; no paths).
 
-Single source of truth used by the manifest/split/copy pipeline. The
-medium-granularity 30-class label set (28 animal classes + blank + setup_pickup)
-was agreed with the dataset maintainer; see README.md and label_map_report.txt.
+Single source of truth for the label set used by the manifest/split/copy/train/eval pipeline. The
+medium-granularity 29-class label set (27 animal classes + blank + setup_pickup) was agreed with
+the dataset maintainer; see README.md and label_map_report.txt. Machine-specific paths (META,
+IMAGE_ROOT, OUT, TRAIN_ROOT, EXCLUDE_FILES) now live in a JSON path-config loaded via
+``path_config.load_path_config`` (see path_config.py), so this module is pure label logic and
+imports cleanly on any machine.
 """
-import json
-import os
-import platform
-
-
-def _p(win, wsl):
-    """Pick a Windows or WSL/Linux path depending on where we're running."""
-    return wsl if platform.system() == "Linux" else win
-
-
-# Canonical metadata (taxonomy fixes already baked in; verify/normalize via fix_metadata.py).
-META = _p(r"E:\data\california-small-animals\california_small_animals_with_sequences.json",
-          "/mnt/e/data/california-small-animals/california_small_animals_with_sequences.json")
-IMAGE_ROOT = _p(r"E:\data\california-small-animals",
-                "/mnt/e/data/california-small-animals")
-OUT = _p(r"C:\temp\california-small-animals-output",
-         "/mnt/c/temp/california-small-animals-output")
-# Resized train/val tree (training reads from here).
-TRAIN_ROOT = _p(r"F:\data\california-small-animals-training",
-                "/mnt/f/data/california-small-animals-training")
-
-# Manual-review exclusions: images whose ground-truth label was confirmed wrong during the
-# label-review pass (see README "Label review / data cleanup"). copy_resize.py (regenerating the
-# training tree) and train.py (building the train/val image lists) both drop these, so the folder
-# and the trainer stay in sync; split.parquet itself is left untouched.
-EXCLUDE_FILES = [
-    _p(r"E:\data\california-small-animals\manual_review_20260628.json",
-       "/mnt/e/data/california-small-animals/manual_review_20260628.json"),
-]
 
 # Canonical class order (index = training label id). 'EXCLUDE' is not a class;
 # images mapping to it are dropped from training.
@@ -156,24 +130,3 @@ def target_class(cat):
         return "mammal_other"
 
     return "EXCLUDE"
-
-
-def load_excluded_guids(paths=EXCLUDE_FILES):
-    """Collect image guids flagged 'incorrect' across one or more manual-review JSON files.
-
-    Each file maps an original relative path -> outcome; the guid is the filename stem. Used by
-    copy_resize.py and train.py so both apply the same exclusions.
-    """
-    guids = set()
-    for p in paths:
-        if not p or not os.path.exists(p):
-            print(f"  (exclusion file not found, skipping: {p})")
-            continue
-        with open(p, encoding="utf-8") as f:
-            review = json.load(f)
-        n = sum(1 for o in review.values() if o == "incorrect")
-        for relpath, outcome in review.items():
-            if outcome == "incorrect":
-                guids.add(os.path.splitext(os.path.basename(relpath))[0])
-        print(f"  loaded {n:,} 'incorrect' exclusions from {p}")
-    return guids

@@ -1,9 +1,14 @@
 """Measure the Reconyx info-banner band heights (top & bottom) across a sample."""
-import os
+import argparse, os
 import numpy as np
 import pandas as pd
 from PIL import Image
-from label_map import OUT, IMAGE_ROOT
+from path_config import load_path_config
+
+_ap = argparse.ArgumentParser()
+_ap.add_argument("--path-config", required=True, help="JSON file of machine paths (OUT, IMAGE_ROOT)")
+_cfg = load_path_config(_ap.parse_args().path_config)
+OUT, IMAGE_ROOT = _cfg.OUT, _cfg.IMAGE_ROOT
 
 df = pd.read_parquet(os.path.join(OUT, "split.parquet"))
 df["subds"] = df.file_name.str.split("/").str[0]

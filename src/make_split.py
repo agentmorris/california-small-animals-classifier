@@ -10,6 +10,7 @@ Outputs:
   split.parquet          per kept image: + 'split' (train/val) + 'dest_rel' path
   camera_split.csv       camera -> split assignment (locked / documented)
 """
+import argparse
 import os
 from collections import Counter, defaultdict
 
@@ -17,9 +18,9 @@ import numpy as np
 import pandas as pd
 import pulp
 
-from label_map import OUT, CLASS_ORDER
+from label_map import CLASS_ORDER
+from path_config import load_path_config
 
-MANIFEST = os.path.join(OUT, "manifest.parquet")
 VAL_FRAC = 0.15
 BLANK_FRAMES_PER_SEQ = 1
 BLANK_CAP_PER_CAM = 300
@@ -82,7 +83,12 @@ def downsample_blanks(df):
 
 
 def main():
-    df = pd.read_parquet(MANIFEST)
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--path-config", required=True, help="JSON file of machine paths (OUT)")
+    args = ap.parse_args()
+    OUT = load_path_config(args.path_config).OUT
+
+    df = pd.read_parquet(os.path.join(OUT, "manifest.parquet"))
     df["target_class"] = df["target_class"].astype(str)
     print(f"manifest: {len(df):,} images, {df.location.nunique()} cameras")
 

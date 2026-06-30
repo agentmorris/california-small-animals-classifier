@@ -31,18 +31,17 @@ import datetime
 
 import pandas as pd
 
-from label_map import CLASS_ORDER, TRAIN_ROOT, OUT, META
+from label_map import CLASS_ORDER
+from path_config import load_path_config
 
 SPLITS = ["train", "val"]
-SPLIT_PARQUET = os.path.join(OUT, "split.parquet")
-OUT_PATH = os.path.join(TRAIN_ROOT, "california-small-animals-training.json")
 
 
-def existing_images():
+def existing_images(train_root):
     """Set of '<split>/<class>/<file>.jpg' rel-paths actually present on disk."""
     existing = set()
     for split in SPLITS:
-        split_dir = os.path.join(TRAIN_ROOT, split)
+        split_dir = os.path.join(train_root, split)
         if not os.path.isdir(split_dir):
             sys.exit(f"Missing split dir: {split_dir}")
         for cls in os.scandir(split_dir):
@@ -65,14 +64,14 @@ def seq_extra_from_meta(meta_path):
     return extra
 
 
-def build():
+def build(train_root, out_base, meta):
     name_to_id = {name: i for i, name in enumerate(CLASS_ORDER)}
     categories = [{"id": i, "name": name} for i, name in enumerate(CLASS_ORDER)]
 
-    existing = existing_images()
+    existing = existing_images(train_root)
     print(f"images on disk: {len(existing):,}", flush=True)
-    extra = seq_extra_from_meta(META)
-    df = pd.read_parquet(SPLIT_PARQUET)
+    extra = seq_extra_from_meta(meta)
+    df = pd.read_parquet(os.path.join(out_base, "split.parquet"))
     print(f"split.parquet rows: {len(df):,}", flush=True)
 
     images = []
@@ -130,20 +129,26 @@ def build():
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--out", default=OUT_PATH)
+    ap.add_argument("--path-config", required=True,
+                    help="JSON file of machine paths (TRAIN_ROOT, OUT, META)")
+    ap.add_argument("--out", default=None,
+                    help="output path (default: <TRAIN_ROOT>/california-small-animals-training.json)")
     ap.add_argument("--force", action="store_true", help="overwrite if it already exists")
     args = ap.parse_args()
 
-    if os.path.exists(args.out) and not args.force:
-        sys.exit(f"{args.out} already exists; pass --force to overwrite")
+    cfg = load_path_config(args.path_config)
+    out_path = args.out or os.path.join(cfg.TRAIN_ROOT, "california-small-animals-training.json")
 
-    coco = build()
-    tmp = args.out + ".tmp"
+    if os.path.exists(out_path) and not args.force:
+        sys.exit(f"{out_path} already exists; pass --force to overwrite")
+
+    coco = build(cfg.TRAIN_ROOT, cfg.OUT, cfg.META)
+    tmp = out_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(coco, f, indent=1)  # line breaks for readability
-    os.replace(tmp, args.out)
-    sz = os.path.getsize(args.out) / 1e6
-    print(f"Wrote {args.out} ({sz:.1f} MB): {len(coco['images'])} images, "
+    os.replace(tmp, out_path)
+    sz = os.path.getsize(out_path) / 1e6
+    print(f"Wrote {out_path} ({sz:.1f} MB): {len(coco['images'])} images, "
           f"{len(coco['categories'])} categories", flush=True)
 
 

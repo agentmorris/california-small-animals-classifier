@@ -3,3 +3,8 @@
 .vscode
 __pycache__
 *.pyc
+
+# Per-machine path configs (machine-specific absolute paths); keep path_config.example.json tracked.
+path_config*.json
+!path_config.example.json
+configs/

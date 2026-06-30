@@ -1,11 +1,16 @@
 """Spot-check: do source images exist, and what do resized outputs look like?"""
-import io, os, time, random
+import argparse, io, os, time, random
 import pandas as pd
 from PIL import Image
-from label_map import OUT, IMAGE_ROOT
+from path_config import load_path_config
 
 SHORT_SIDE = 512
 QUALITY = 90
+
+_ap = argparse.ArgumentParser()
+_ap.add_argument("--path-config", required=True, help="JSON file of machine paths (OUT, IMAGE_ROOT)")
+_cfg = load_path_config(_ap.parse_args().path_config)
+OUT, IMAGE_ROOT = _cfg.OUT, _cfg.IMAGE_ROOT
 
 df = pd.read_parquet(os.path.join(OUT, "split.parquet"))
 # sample across the 3 sub-datasets and a spread of classes

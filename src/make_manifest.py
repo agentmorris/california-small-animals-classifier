@@ -4,18 +4,26 @@ report blank/sequence/per-camera statistics.
 Keeps only single-annotation images whose category maps to a real class
 (EXCLUDE and multi-annotation images are dropped). Writes manifest.parquet.
 """
+import argparse
 import json
 import os
 from collections import Counter, defaultdict
 
 import pandas as pd
 
-from label_map import META, OUT, CLASS_ORDER, target_class
-
-MANIFEST = os.path.join(OUT, "manifest.parquet")
+from label_map import CLASS_ORDER, target_class
+from path_config import load_path_config
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--path-config", required=True,
+                    help="JSON file of machine paths (META, OUT)")
+    args = ap.parse_args()
+    cfg = load_path_config(args.path_config)
+    META, OUT = cfg.META, cfg.OUT
+    MANIFEST = os.path.join(OUT, "manifest.parquet")
+
     print("Loading fixed JSON...", flush=True)
     with open(META, encoding="utf-8") as f:
         data = json.load(f)

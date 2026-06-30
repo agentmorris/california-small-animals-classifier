@@ -11,18 +11,24 @@ import sys
 import json
 import argparse
 
-from label_map import TRAIN_ROOT
+from path_config import load_path_config
 
-MASTER = os.path.join(TRAIN_ROOT, "california-small-animals-training.json")
-OUT = os.path.join(TRAIN_ROOT, "val", "val_cct.json")
 PFX = "val/"
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--master", default=MASTER)
-    ap.add_argument("--out", default=OUT)
+    ap.add_argument("--path-config", required=True,
+                    help="JSON file of machine paths (TRAIN_ROOT)")
+    ap.add_argument("--master", default=None,
+                    help="master GT (default: <TRAIN_ROOT>/california-small-animals-training.json)")
+    ap.add_argument("--out", default=None,
+                    help="output (default: <TRAIN_ROOT>/val/val_cct.json)")
     args = ap.parse_args()
+
+    cfg = load_path_config(args.path_config)
+    args.master = args.master or os.path.join(cfg.TRAIN_ROOT, "california-small-animals-training.json")
+    args.out = args.out or os.path.join(cfg.TRAIN_ROOT, "val", "val_cct.json")
 
     if not os.path.isfile(args.master):
         sys.exit(f"master GT not found: {args.master} (run make_gt_coco.py first)")
