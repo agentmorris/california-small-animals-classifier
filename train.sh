@@ -38,7 +38,7 @@ if [ -z "$PATH_CONFIG" ]; then
 fi
 
 # Read OUT (output base) from the path-config JSON via the active env's python.
-OUT=$(python -c "import json,sys; print(json.load(open(sys.argv[1]))['OUTPUT_FOLDER'])" "$PATH_CONFIG")
+OUT=$(python -c "import json,sys; print(json.load(open(sys.argv[1]))['OUTPUT_ROOT'])" "$PATH_CONFIG")
 if [ -z "$OUT" ]; then
   echo "ERROR: could not read OUT from path-config: $PATH_CONFIG" >&2
   exit 1
