@@ -84,9 +84,9 @@ def downsample_blanks(df):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--path-config", required=True, help="JSON file of machine paths (OUT)")
+    ap.add_argument("--path-config", required=True, help="JSON file of machine paths (OUTPUT_ROOT)")
     args = ap.parse_args()
-    OUT = load_path_config(args.path_config).OUT
+    OUT = load_path_config(args.path_config).OUTPUT_ROOT
 
     df = pd.read_parquet(os.path.join(OUT, "manifest.parquet"))
     df["target_class"] = df["target_class"].astype(str)

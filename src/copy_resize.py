@@ -48,7 +48,8 @@ def process(task):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--path-config", required=True,
-                    help="JSON file of machine paths (OUT, IMAGE_ROOT, TRAIN_ROOT, EXCLUDE_FILES)")
+                    help="JSON file of machine paths (OUTPUT_ROOT, IMAGE_ROOT, TRAIN_ROOT, "
+                         "EXCLUDE_FILES)")
     ap.add_argument("--test", type=int, default=0,
                     help="process only N randomly-sampled images")
     ap.add_argument("--workers", type=int, default=os.cpu_count())
@@ -61,7 +62,7 @@ def main():
 
     cfg = load_path_config(args.path_config)
     image_root, train_root = cfg.IMAGE_ROOT, cfg.TRAIN_ROOT
-    df = pd.read_parquet(os.path.join(cfg.OUT, "split.parquet"))
+    df = pd.read_parquet(os.path.join(cfg.OUTPUT_ROOT, "split.parquet"))
 
     exclude_paths = [] if args.no_exclude else (args.exclude or cfg.EXCLUDE_FILES)
     if exclude_paths:
@@ -104,7 +105,7 @@ def main():
     print(f"\nDone in {dt/60:.1f} min: ok={counts['ok']:,} skip={counts['skip']:,} "
           f"err={counts['err']:,}  ({len(tasks)/dt:.0f} img/s)")
     if errors:
-        log = os.path.join(cfg.OUT, "copy_resize_errors.txt")
+        log = os.path.join(cfg.OUTPUT_ROOT, "copy_resize_errors.txt")
         with open(log, "w", encoding="utf-8") as f:
             f.write("\n".join(errors))
         print(f"wrote {len(errors)} errors -> {log}")

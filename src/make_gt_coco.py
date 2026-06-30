@@ -9,7 +9,8 @@ The image list and labels come from the locked ``split.parquet`` (the curated su
 the images that actually exist on disk (so the file lists only reviewable images -- one source
 image failed to copy). **Per-image sequence information is preserved** (``seq_id``,
 ``seq_num_frames``, ``frame_num``) along with ``datetime``; ``seq_num_frames`` and ``datetime`` are
-joined from the canonical metadata (``label_map.META``), the rest come from ``split.parquet``.
+joined from the canonical metadata (the path-config's ``METADATA_FILE``), the rest come from
+``split.parquet``.
 
 Output: ``<TRAIN_ROOT>/california-small-animals-training.json`` (written with ``indent=1``).
 
@@ -130,7 +131,7 @@ def build(train_root, out_base, meta):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--path-config", required=True,
-                    help="JSON file of machine paths (TRAIN_ROOT, OUT, META)")
+                    help="JSON file of machine paths (TRAIN_ROOT, OUTPUT_ROOT, METADATA_FILE)")
     ap.add_argument("--out", default=None,
                     help="output path (default: <TRAIN_ROOT>/california-small-animals-training.json)")
     ap.add_argument("--force", action="store_true", help="overwrite if it already exists")
@@ -142,7 +143,7 @@ def main():
     if os.path.exists(out_path) and not args.force:
         sys.exit(f"{out_path} already exists; pass --force to overwrite")
 
-    coco = build(cfg.TRAIN_ROOT, cfg.OUT, cfg.META)
+    coco = build(cfg.TRAIN_ROOT, cfg.OUTPUT_ROOT, cfg.METADATA_FILE)
     tmp = out_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(coco, f, indent=1)  # line breaks for readability

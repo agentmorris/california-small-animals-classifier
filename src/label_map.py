@@ -2,8 +2,9 @@
 
 Single source of truth for the label set used by the manifest/split/copy/train/eval pipeline. The
 medium-granularity 29-class label set (27 animal classes + blank + setup_pickup) was agreed with
-the dataset maintainer; see README.md and label_map_report.txt. Machine-specific paths (META,
-IMAGE_ROOT, OUT, TRAIN_ROOT, EXCLUDE_FILES) now live in a JSON path-config loaded via
+the dataset maintainer; see README.md and label_map_report.txt. Machine-specific paths
+(METADATA_FILE, IMAGE_ROOT, OUTPUT_ROOT, TRAIN_ROOT, EXCLUDE_FILES) now live in a JSON path-config
+loaded via
 ``path_config.load_path_config`` (see path_config.py), so this module is pure label logic and
 imports cleanly on any machine.
 """

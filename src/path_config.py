@@ -7,9 +7,9 @@ paths) but eval under native Windows (``C:\\...`` paths), so it keeps two config
 Linux box needs only one.
 
 Required keys (all must be present):
-  META          - COCO Camera Traps metadata JSON
+  METADATA_FILE - COCO Camera Traps metadata JSON
   IMAGE_ROOT    - root of the original (full-size) image tree
-  OUT           - output base folder (runs/, split.parquet, manifest.parquet, ... live here)
+  OUTPUT_ROOT   - output base folder (runs/, split.parquet, manifest.parquet, ... live here)
   TRAIN_ROOT    - root of the resized train/val tree
   EXCLUDE_FILES - list of manual-review JSON files; images marked "incorrect" are dropped from
                   training. Use [] for none, but the key itself is still required.
@@ -20,7 +20,7 @@ import json
 import os
 from types import SimpleNamespace
 
-REQUIRED = ("META", "IMAGE_ROOT", "OUT", "TRAIN_ROOT", "EXCLUDE_FILES")
+REQUIRED = ("METADATA_FILE", "IMAGE_ROOT", "OUTPUT_ROOT", "TRAIN_ROOT", "EXCLUDE_FILES")
 
 
 def load_path_config(path):

@@ -32,10 +32,11 @@ EXCLUDE_REASONS = {
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--path-config", required=True, help="JSON file of machine paths (META, OUT)")
+    ap.add_argument("--path-config", required=True,
+                    help="JSON file of machine paths (METADATA_FILE, OUTPUT_ROOT)")
     args = ap.parse_args()
     cfg = load_path_config(args.path_config)
-    META, OUT = cfg.META, cfg.OUT
+    META, OUT = cfg.METADATA_FILE, cfg.OUTPUT_ROOT
 
     with open(META, encoding="utf-8") as f:
         data = json.load(f)

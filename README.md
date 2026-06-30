@@ -35,25 +35,25 @@ Performance notes: `torch.compile` + DDP needs `torch._dynamo.config.optimize_dd
 
 ### The path config file
 
-All machine-specific absolute paths live in a small JSON file passed to every script via `--path-config`, so nothing under `src/` (or `train.sh`) hard-codes a path and the same code runs unchanged on any machine. `src/path_config.py` loads and validates it; `train.sh` reads `OUT` from it to place the run folder.
+All machine-specific absolute paths live in a small JSON file passed to every script via `--path-config`, so nothing under `src/` (or `train.sh`) hard-codes a path and the same code runs unchanged on any machine. `src/path_config.py` loads and validates it; `train.sh` reads `OUTPUT_ROOT` from it to place the run folder.
 
 It is per *environment*, not just per machine: `wingpu` runs training under WSL (`/mnt/...` paths) but eval under native Windows (drive-letter paths), so it keeps two files, `configs/wingpu-wsl.json` and `configs/wingpu-windows.json`; `ubuntu-gpu` (native Linux) needs only one. A template lives at `path_config.example.json`; the real configs are gitignored (anything matching `path_config*.json` other than the example, plus `configs/`).
 
 Required keys (all must be present):
 
-- `META`: the COCO Camera Traps metadata JSON.
+- `METADATA_FILE`: the COCO Camera Traps metadata JSON.
 - `IMAGE_ROOT`: root of the original (full-size) image tree.
-- `OUT`: output base folder (holds `runs/`, `split.parquet`, `manifest.parquet`, the locked split, etc.).
+- `OUTPUT_ROOT`: output base folder (holds `runs/`, `split.parquet`, `manifest.parquet`, the locked split, etc.).
 - `TRAIN_ROOT`: root of the resized train/val tree.
-- `EXCLUDE_FILES`: list of manual-review JSON files (see "Label review / data cleanup"); images marked `incorrect` are dropped from training. Use `[]` for none, but the key is still required. To reproduce the cleaned training set on another machine, copy the review JSON over and point this at it.
+- `EXCLUDE_FILES`: list of manual-review JSON files (see "Label review / data cleanup"); images marked `incorrect` are dropped from training. Use `[]` for none, but the key is still required. To reproduce the cleaned training set on another machine, copy the review JSON over and point this at it.  Currently this does exact matching on the filename stem only, so "a/b/c/xxxyyy111222.JPG" is the same as "xxxyyy111222.JPG".
 
-Each script reads only the keys it needs (e.g. `train.py` uses `OUT`, `TRAIN_ROOT`, and `EXCLUDE_FILES`), but all keys are required so one file fully describes a machine/environment. Example:
+Each script reads only the keys it needs (e.g. `train.py` uses `OUTPUT_ROOT`, `TRAIN_ROOT`, and `EXCLUDE_FILES`), but all keys are required so one file fully describes a machine/environment. Example:
 
 ```json
 {
- "META": "E:\\data\\california-small-animals\\california_small_animals_with_sequences.json",
+ "METADATA_FILE": "E:\\data\\california-small-animals\\california_small_animals_with_sequences.json",
  "IMAGE_ROOT": "E:\\data\\california-small-animals",
- "OUT": "C:\\temp\\california-small-animals-output",
+ "OUTPUT_ROOT": "C:\\temp\\california-small-animals-output",
  "TRAIN_ROOT": "F:\\data\\california-small-animals-training",
  "EXCLUDE_FILES": [
   "E:\\data\\california-small-animals\\manual_review_20260628.json"

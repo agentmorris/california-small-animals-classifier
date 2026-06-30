@@ -244,8 +244,8 @@ class Classifier(L.LightningModule):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--path-config", required=True,
-                    help="JSON file of machine-specific paths (OUT, TRAIN_ROOT, EXCLUDE_FILES, ...); "
-                         "see path_config.example.json")
+                    help="JSON file of machine-specific paths (OUTPUT_ROOT, TRAIN_ROOT, "
+                         "EXCLUDE_FILES, ...); see path_config.example.json")
     ap.add_argument("--model", default="eva02_large_patch14_448.mim_m38m_ft_in22k_in1k")
     ap.add_argument("--img-size", type=int, default=448)
     ap.add_argument("--batch-size", type=int, default=24, help="per GPU")
@@ -264,7 +264,7 @@ def main():
     ap.add_argument("--benchmark-steps", type=int, default=0,
                     help="if >0, run only this many train steps (throughput probe)")
     ap.add_argument("--run-name", required=True,
-                    help="run folder name under <OUT>/runs/")
+                    help="run folder name under <OUTPUT_ROOT>/runs/")
     ap.add_argument("--resume", default=None,
                     help="checkpoint path, or 'last' to resume from checkpoints/last.ckpt")
     ap.add_argument("--patience", type=int, default=0,
@@ -294,8 +294,8 @@ def main():
     args = ap.parse_args()
 
     cfg = load_path_config(args.path_config)
-    split_path = os.path.join(cfg.OUT, "split.parquet")
-    runs_dir = os.path.join(cfg.OUT, "runs")   # each run lives in runs/<run-name>/
+    split_path = os.path.join(cfg.OUTPUT_ROOT, "split.parquet")
+    runs_dir = os.path.join(cfg.OUTPUT_ROOT, "runs")   # each run lives in runs/<run-name>/
 
     # Per-run output folder: runs/<run-name>/ holds checkpoints/, metrics.csv,
     # hparams.yaml, and (via the launcher) the train log.

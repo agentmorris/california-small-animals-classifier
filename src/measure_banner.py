@@ -6,9 +6,10 @@ from PIL import Image
 from path_config import load_path_config
 
 _ap = argparse.ArgumentParser()
-_ap.add_argument("--path-config", required=True, help="JSON file of machine paths (OUT, IMAGE_ROOT)")
+_ap.add_argument("--path-config", required=True,
+                 help="JSON file of machine paths (OUTPUT_ROOT, IMAGE_ROOT)")
 _cfg = load_path_config(_ap.parse_args().path_config)
-OUT, IMAGE_ROOT = _cfg.OUT, _cfg.IMAGE_ROOT
+OUT, IMAGE_ROOT = _cfg.OUTPUT_ROOT, _cfg.IMAGE_ROOT
 
 df = pd.read_parquet(os.path.join(OUT, "split.parquet"))
 df["subds"] = df.file_name.str.split("/").str[0]

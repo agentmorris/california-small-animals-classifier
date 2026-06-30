@@ -55,18 +55,18 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_name")
     ap.add_argument("--path-config",
-                    help="JSON file of machine paths; the run folder is <OUT>/runs/<run-name>. "
+                    help="JSON file of machine paths; the run folder is <OUTPUT_ROOT>/runs/<run-name>. "
                          "Omit only if --runs-dir is given.")
     ap.add_argument("--runs-dir", default=None,
-                    help="override: directory holding run folders (default: <OUT>/runs)")
+                    help="override: directory holding run folders (default: <OUTPUT_ROOT>/runs)")
     ap.add_argument("--half", action="store_true", help="store stripped weights as float16")
     args = ap.parse_args()
 
     runs_dir = args.runs_dir
     if runs_dir is None:
         if not args.path_config:
-            raise SystemExit("provide --path-config (for <OUT>/runs) or --runs-dir")
-        runs_dir = os.path.join(load_path_config(args.path_config).OUT, "runs")
+            raise SystemExit("provide --path-config (for <OUTPUT_ROOT>/runs) or --runs-dir")
+        runs_dir = os.path.join(load_path_config(args.path_config).OUTPUT_ROOT, "runs")
 
     run_dir = os.path.join(runs_dir, args.run_name)
     if not os.path.isdir(run_dir):

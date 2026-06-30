@@ -1,7 +1,7 @@
 {
- "META": "E:\\data\\california-small-animals\\california_small_animals_with_sequences.json",
+ "METADATA_FILE": "E:\\data\\california-small-animals\\california_small_animals_with_sequences.json",
  "IMAGE_ROOT": "E:\\data\\california-small-animals",
- "OUT": "C:\\temp\\california-small-animals-output",
+ "OUTPUT_ROOT": "C:\\temp\\california-small-animals-output",
  "TRAIN_ROOT": "F:\\data\\california-small-animals-training",
  "EXCLUDE_FILES": [
   "E:\\data\\california-small-animals\\manual_review_20260628.json"

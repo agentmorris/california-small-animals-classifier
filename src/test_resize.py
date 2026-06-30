@@ -8,9 +8,10 @@ SHORT_SIDE = 512
 QUALITY = 90
 
 _ap = argparse.ArgumentParser()
-_ap.add_argument("--path-config", required=True, help="JSON file of machine paths (OUT, IMAGE_ROOT)")
+_ap.add_argument("--path-config", required=True,
+                 help="JSON file of machine paths (OUTPUT_ROOT, IMAGE_ROOT)")
 _cfg = load_path_config(_ap.parse_args().path_config)
-OUT, IMAGE_ROOT = _cfg.OUT, _cfg.IMAGE_ROOT
+OUT, IMAGE_ROOT = _cfg.OUTPUT_ROOT, _cfg.IMAGE_ROOT
 
 df = pd.read_parquet(os.path.join(OUT, "split.parquet"))
 # sample across the 3 sub-datasets and a spread of classes
