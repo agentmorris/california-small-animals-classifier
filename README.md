@@ -67,7 +67,7 @@ From a WSL shell, in the repo root, in a conda environment with requirements.txt
 
 ```bash
 export RUN_NAME="eva02-20260630-base-repro"
-train.sh --devices 2 --batch-size 24 --workers 12 --epochs 20 --patience 3 --intermediate-checkpoints-per-epoch 8 --run-name ${RUN_NAME} --checkpoint_-folder ~/data/checkpoints-${RUN_NAME} --path-config configs/wingpu-wsl.json
+./train.sh --devices 2 --batch-size 24 --workers 12 --epochs 20 --patience 3 --intermediate-checkpoints-per-epoch 8 --run-name ${RUN_NAME} --checkpoint-folder ~/data/checkpoints-${RUN_NAME} --path-config configs/wingpu-wsl.json
 ```
 
 `--intermediate-checkpoints-per-epoch` enables weights-only checkpoints during each epoch, in addition to the checkpoints written at the end of each epoch.  These are used for post-hoc evaluation of whether validation accuracy is significantly peaking mid-epoch.
