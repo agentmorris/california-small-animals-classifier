@@ -24,10 +24,72 @@ from megadetector.utils.ct_utils import write_json
 
 results_file_tag = 'val'
 image_folder = 'f:/data/california-small-animals-training/' + results_file_tag
-results_file = 'c:/temp/california-small-animals-output/runs/eva02-20260608/' + \
-    results_file_tag + '_predictions_eva02-20260608-00.json'
 assert os.path.isdir(image_folder)
-assert os.path.isfile(results_file)
+
+val_gt_json_file = os.path.join(image_folder,results_file_tag + '_cct.json')
+
+results_files = [
+    r"C:\temp\california-small-animals-output\runs\eva02-20260608\val_predictions_eva02-20260608-00.json",
+    r"C:\temp\california-small-animals-output\runs\eva02-20260630-base-repro\eva02-20260630-base-repro-00.json"
+]
+
+
+thresholds = [0.0, 0.1, 0.2]
+
+
+#%% Classification analysis
+
+html_output_files = []
+
+for results_file in results_files:
+
+    for threshold in thresholds:
+
+        analysis_preview_folder = \
+            os.path.join(os.path.dirname(results_file),
+                        'classification-analysis/classification-analysis-{:.2f}'.format(threshold))
+
+        options = ClassificationAnalysisOptions()
+
+        options.results_file = results_file
+        options.gt_file = val_gt_json_file
+        options.classification_confidence_threshold = threshold
+        options.detection_threshold = 0.0
+
+        options.image_base_dir = image_folder
+        options.html_output_dir = analysis_preview_folder
+        options.max_total_images = 8000
+        options.max_images_per_cell = 50
+        options.random_seed = 0
+        options.detection_category_mapping = None
+        options.apply_detection_category_mapping_when_classifications_are_present = True
+        options.sequence_level_analysis = False
+        options.rendering_workers = 10
+        options.rendering_pool_type = 'threads'
+        options.overwrite = True
+        options.show_overall_metrics = True
+        options.output_image_width = 1000
+        options.n_mispredictions_for_table = 5
+        options.categories_to_ignore = None
+        options.single_prediction_per_image = False
+        options.single_label_per_image = False
+        options.max_images_per_html_file = 1000
+        options.predicted_category_name_mappings = None
+        options.gt_category_name_mappings = None
+        options.n_below_threshold_classifications_to_display = 3
+
+        r = analyze_classification_results(options)
+
+        html_output_files.append(r.html_output_file)
+
+    # ...for each threshold
+
+# ...for each results file
+
+#%%
+
+for html_output_file in html_output_files:
+    open_file(html_output_file)
 
 
 #%% Validate results file
@@ -48,11 +110,9 @@ r = validate_batch_results(json_filename=results_file,
 
 force_prepare_gt_file = False
 
-batch_json_file = os.path.join(image_folder,results_file_tag + '_cct.json')
+if os.path.exists(val_gt_json_file) and (not force_prepare_gt_file):
 
-if os.path.exists(batch_json_file) and (not force_prepare_gt_file):
-
-    print('{} exists, bypassing GT generation'.format(batch_json_file))
+    print('{} exists, bypassing GT generation'.format(val_gt_json_file))
 
 else:
 
@@ -104,10 +164,10 @@ else:
     coco_out['annotations'] = annotations
     coco_out['categories'] = categories
 
-    write_json(batch_json_file,coco_out)
+    write_json(val_gt_json_file,coco_out)
 
 
-#%% Validate COCO file
+#%% Validate GT COCO file
 
 options = IntegrityCheckOptions()
 
@@ -125,11 +185,11 @@ options.requireInfo = True
 options.validateBoxes = None
 
 sorted_categories, data, error_info = \
-    integrity_check_json_db(json_file=batch_json_file,
+    integrity_check_json_db(json_file=val_gt_json_file,
                             options=options)
 
 
-#%% Preview COCO file
+#%% Preview GT COCO file
 
 preview_folder = 'c:/temp/csa-{}-preview'.format(results_file_tag)
 
@@ -159,7 +219,7 @@ options.colormap = None
 options.create_category_pages = False
 options.max_sequence_length = None
 
-html_output_file,image_db = visualize_db(db_path=batch_json_file,
+html_output_file,image_db = visualize_db(db_path=val_gt_json_file,
                                          output_dir=preview_folder,
                                          image_base_dir=image_folder,
                                          options=options)
@@ -167,42 +227,3 @@ html_output_file,image_db = visualize_db(db_path=batch_json_file,
 open_file(html_output_file)
 
 
-#%% Classification analysis
-
-threshold = 0.4
-
-analysis_preview_folder = \
-    os.path.join(os.path.dirname(results_file),
-                 'classification-analysis-{:.2f}'.format(threshold))
-
-options = ClassificationAnalysisOptions()
-
-options.results_file = results_file
-options.gt_file = batch_json_file
-options.classification_confidence_threshold = threshold
-options.detection_threshold = 0.0
-
-options.image_base_dir = image_folder
-options.html_output_dir = analysis_preview_folder
-options.max_total_images = 8000
-options.max_images_per_cell = 50
-options.random_seed = 0
-options.detection_category_mapping = None
-options.apply_detection_category_mapping_when_classifications_are_present = True
-options.sequence_level_analysis = False
-options.rendering_workers = 10
-options.rendering_pool_type = 'threads'
-options.overwrite = True
-options.show_overall_metrics = True
-options.output_image_width = 1000
-options.n_mispredictions_for_table = 5
-options.categories_to_ignore = None
-options.single_prediction_per_image = False
-options.single_label_per_image = False
-options.max_images_per_html_file = 1000
-options.predicted_category_name_mappings = None
-options.gt_category_name_mappings = None
-options.n_below_threshold_classifications_to_display = 3
-
-r = analyze_classification_results(options)
-open_file(r.html_output_file)

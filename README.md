@@ -150,7 +150,7 @@ It runs on native Windows (like all our inference). The output folder ends up wi
 After a run finishes (or you stop it early), the usual next step is to extract the single best epoch as a compact, inference-ready checkpoint. `copy_best_checkpoint.py <run-name>` does this: it finds the epoch with the highest `val/acc_macro`, strips the optimizer/scheduler/callback state from that epoch's checkpoint (reusing `strip_checkpoint.py`), and writes `<run-name>.best.epochNN.stripped.pt` to the run-folder root. That `.stripped.pt` is the self-describing inference format documented under "Inference-ready checkpoints", and is what `run_inference.py` consumes. The script errors if the chosen epoch's checkpoint is missing; pass `--half` to store fp16 weights.
 
 ```bash
-python copy_best_checkpoint.py ${RUN_NAME}
+python copy_best_checkpoint.py ${RUN_DIR}
 ```
 
 It reads every `metrics*.csv` in the run folder, not just `metrics.csv`, because a resumed run spreads its per-epoch history across multiple files (see "Resuming training"). If the same epoch appears in more than one file (an abandoned attempt plus its post-resume redo), the highest-`step` row wins so the score matches the checkpoint actually on disk; ties on `val/acc_macro` go to the later epoch.
