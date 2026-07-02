@@ -227,20 +227,13 @@ First pass (2026-06-28): 5,743 images excluded — almost all `blank`-labeled fr
 
 ## TODO
 
+### In progress
+
+- Trying an LLRD (layer-wise learning rate decay) experiment to address early overfitting (peaking at epoch 0), where we enable `--layer-decay` and shorten warmup from a full epoch to just 500 steps (previous experiments showed very fast convergence to an optimal warmup results).
+
 ### P0
 
-- **Explore overfitting:**: results are good, but training is overfitting quickly (peaking at epoch 0), consider (a) intermediate checkpointing, (b) layer freezing, and/or (c) linear probe with high learning rate followed by wider training with a low learning rate.  Specifically an LLRD (layer-wise learning rate decay) experiment, where we enable `--layer-decay` and shorten warmup from a full epoch to just 500 steps (previous experiments showed very fast convergence to an optimal warmup results):
-
-```bash  
-export RUN_NAME="eva02-20260630-llrd"
-./train.sh --path-config configs/ubuntu-gpu.json --run-name ${RUN_NAME} \
-  --devices 2 --batch-size 24 --workers 12 \
-  --layer-decay 0.75 --lr 1e-4 --warmup-steps 500 --epochs 8 --patience 3 \
-  --intermediate-checkpoints-per-epoch 8
-```
-
 - **Add background worker loading/preprocessing to inference script**
-- **Data cleanup (blank ↔ non-blank).** First pass DONE (2026-06-28); see "Label review / data cleanup". 5,743 mislabeled images excluded; re-training on the cleaned set. Future: extend the same review workflow to non-blank confusions and other high-confidence disagreements.
 - **Inference-time banner-crop A/B (quick):** evaluate val accuracy with the banner crop on vs off, to pick the inference default and confirm the synthetic-banner augmentation actually makes the model crop-agnostic.
 - **Test on Ohio Small Animals data, consider adding to training**
 - **Test on CCER Small Animals data, consider adding to training**
@@ -248,8 +241,11 @@ export RUN_NAME="eva02-20260630-llrd"
 
 ### P1
 
+- **LP-FT: initialize a full fine-tune from the linear-probe-trained head rather than a fresh head**. Needs a small train.py addition (a "load weights only" init distinct from --resume). This is the natural next training experiment if LLRD helps but doesn't fully clear the wall.
+- **Checkpoint selection metric**.  We have seen some divergence between where micro/macro accuracy peak. `copy_best_checkpoint.py` picks by macro. Consider a --metric/blended option or a Pareto view, and reconsider whether --weight-scheme sqrt (the thing trading micro for macro) is optimal.
+- **Re-assess granularity.** `rodent_other` (~13%), `mammal_other`, `isopod`, `other_invert` stay poor.  The decision to use `mouse` vs. `rodent_other` may be annotator-specific, i.e. this may not be a real distinction.
+- **Evaluate inference-time banner-crop on/off** on new datasets, to confirm the synthetic-banner aug transfers to other cameras.
 - **Reduce penalties for partial mistakes**: consider adjusting the loss function so that for, e.g., a specific rodent species, predicting "other rodent" is penalized less than predicting "bird"
-- **New CDFW data:** Talk to CDFW about pulling in additional data
 - **Architecture A/B (if we want to push accuracy past eva02_large@448):** candidates to prioritize, roughly in order —
   1. `convnextv2_large` / `convnextv2_huge` @ 384–512 (strong fine-grained CNN, fast).
   2. `eva02_large_patch14_448` is our baseline; also try `eva02_large` at higher test-time resolution (448→512) via timm's dynamic img-size.
@@ -260,11 +256,13 @@ export RUN_NAME="eva02-20260630-llrd"
 - **Hierarchical cascade (alternative to the flat model):** e.g. blank/non-blank → coarse class (mammal/reptile/amphibian/bird/insect/other) → finer visual groups. Could be more robust on the long tail and lets us calibrate a high-recall blank filter independently. Wrap all stages behind one inference script.
 - **Banner handling as a *training-time* experiment:** compare (a) no crop, (b) crop only, (c) crop + synthetic-banner aug — on val accuracy and cross-camera robustness. Revisit whether to crop at train at all. (The inference-time A/B in the TODO list is the quick first cut of this.)
 - **Rectangular-input fine-tuning** (e.g. 448×630 to match the ~1.42:1 frame aspect via pos-embed interpolation) to avoid the squash distortion entirely.
+- **New CDFW data:** Talk to CDFW about pulling in additional data
 
 ### P2
 
-- Revisit `unknown` (736) — currently excluded; could become an abstain/OOD target.
-- Consider keeping the vertebrate label on multi-annotation images to recover ~9k images.
+- **Data cleanup (blank ↔ non-blank).** First pass done (2026-06-28); see "Label review / data cleanup". 5,743 mislabeled images excluded; re-training on the cleaned set. Future: extend the same review workflow to non-blank confusions and other high-confidence disagreements.
+- **Revisit `unknown` labels (736).** Currently excluded; could become an abstain/OOD target.
+- **Consider keeping the `vertebrate` label on multi-annotation images** to recover ~9k images.
 
 #### Training crash due to WSL I/O timeout
 
