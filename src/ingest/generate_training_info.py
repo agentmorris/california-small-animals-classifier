@@ -1,9 +1,15 @@
-"""Emit a self-contained provenance record of the train/val split and the
+"""
+
+Emit a self-contained provenance record of the train/val split and the
 source-category -> training-class assignments.
 
 Writes training_info.<YYYYMMDD>.json into the repo. Reproducible from the fixed
 metadata + the split artifacts in the output folder.
+
 """
+
+#%% Imports and constants
+
 import argparse
 import json
 import os
@@ -30,7 +36,10 @@ EXCLUDE_REASONS = {
 }
 
 
+#%% Command-line driver
+
 def main():
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--path-config", required=True,
                     help="JSON file of machine paths (METADATA_FILE, OUTPUT_ROOT)")

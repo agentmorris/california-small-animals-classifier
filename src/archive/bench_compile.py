@@ -1,4 +1,9 @@
-"""Does torch.compile speed up the accuracy-safe (autocast/fp32-master) config?"""
+"""
+Does torch.compile speed up the accuracy-safe (autocast/fp32-master) config?
+"""
+
+#%% Imports and constants
+
 import time
 import torch
 import timm
@@ -7,7 +12,10 @@ M = "eva02_large_patch14_448.mim_m38m_ft_in22k_in1k"
 torch.set_float32_matmul_precision("high")
 
 
+#%% Support functions
+
 def run(tag, bs, compile=False, mode="autocast", grad_ckpt=True):
+
     torch.cuda.empty_cache(); torch.cuda.reset_peak_memory_stats()
     try:
         model = timm.create_model(M, pretrained=False, num_classes=30).cuda()
@@ -42,6 +50,8 @@ def run(tag, bs, compile=False, mode="autocast", grad_ckpt=True):
     finally:
         torch.cuda.empty_cache()
 
+
+#%% Test execution
 
 run("autocast+ckpt           bs16 (baseline)", 16)
 run("autocast+ckpt+compile   bs16", 16, compile=True)

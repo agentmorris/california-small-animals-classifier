@@ -1,9 +1,14 @@
-"""Build the per-image manifest (single source of truth for split + copy) and
+"""
+
+Build the per-image manifest (single source of truth for split + copy) and
 report blank/sequence/per-camera statistics.
 
 Keeps only single-annotation images whose category maps to a real class
 (EXCLUDE and multi-annotation images are dropped). Writes manifest.parquet.
 """
+
+#%% Imports and constants
+
 import argparse
 import json
 import os
@@ -15,7 +20,9 @@ from label_map import CLASS_ORDER, target_class
 from path_config import load_path_config
 
 
+#%% Command-line driver
 def main():
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--path-config", required=True,
                     help="JSON file of machine paths (METADATA_FILE, OUTPUT_ROOT)")

@@ -1,18 +1,34 @@
-"""Build taxonomic rollup + per-location stats for the California Small Animals dataset."""
+"""
+
+Build taxonomic rollup + per-location stats for the California Small Animals dataset.
+
+"""
+
+#%% Imports and constants
+
 import json
 import os
 import csv
 from collections import Counter, defaultdict
 
-META = r"E:\data\california-small-animals\california_small_animals_with_sequences.json"
-OUT = r"C:\temp\california-small-animals-output"
-os.makedirs(OUT, exist_ok=True)
+metadata_file = r"E:\data\california-small-animals\california_small_animals_with_sequences.json"
+output_folder = r"C:\temp\california-small-animals-output"
+os.makedirs(output_folder, exist_ok=True)
+
+
+#%% Support functions
 
 def isnan(x):
-    return x is None or (isinstance(x, float) and x != x) or (isinstance(x, str) and x.strip().lower() in ("", "nan"))
+
+    return (x is None) or \
+        (isinstance(x, float) and x != x) or \
+        (isinstance(x, str) and x.strip().lower() in ("", "nan"))
+
+
+#%% Stats computation
 
 print("Loading...", flush=True)
-with open(META, "r", encoding="utf-8") as f:
+with open(metadata_file, "r", encoding="utf-8") as f:
     data = json.load(f)
 
 images = data["images"]
@@ -23,8 +39,11 @@ cats = {c["id"]: c for c in data["categories"]}
 cat_counts = Counter(a["category_id"] for a in anns)
 
 # --- Per-category table with taxonomy ---
+
 rows = []
+
 for cid, c in cats.items():
+
     rows.append({
         "id": cid,
         "name": c["name"],
@@ -35,8 +54,11 @@ for cid, c in cats.items():
         "genus": "" if isnan(c.get("genus")) else c["genus"],
         "species": "" if isnan(c.get("species")) else c["species"],
     })
+
+# ...for each category
+
 rows.sort(key=lambda r: -r["count"])
-csv_path = os.path.join(OUT, "categories.csv")
+csv_path = os.path.join(output_folder, "categories.csv")
 with open(csv_path, "w", newline="", encoding="utf-8") as f:
     w = csv.DictWriter(f, fieldnames=["id","name","count","class","order","family","genus","species"])
     w.writeheader()
@@ -106,7 +128,7 @@ few = sum(1 for v in loc_total.values() if v < 200)
 print(f"locations with <200 images: {few}")
 
 # save per-location counts
-with open(os.path.join(OUT, "per_location.csv"), "w", newline="", encoding="utf-8") as f:
+with open(os.path.join(output_folder, "per_location.csv"), "w", newline="", encoding="utf-8") as f:
     w = csv.writer(f)
     w.writerow(["location","total","blank_misfire"])
     for loc in sorted(loc_total):

@@ -32,6 +32,9 @@ NOT changed
 Operates in place on the single canonical metadata file:
   E:\\data\\california-small-animals\\california_small_animals_with_sequences.json
 """
+
+#%% Imports and constants
+
 import json
 import os
 import sys
@@ -53,7 +56,10 @@ KEEP_ID = 158   # "aspidoscelis species"  (correct spelling)
 DUP_ID  = 239   # "aspidocelis species"   (misspelled duplicate)
 
 
+#%% Command-line driver
+
 def main():
+
     print("Loading source JSON (1.3GB)...", flush=True)
     with open(SRC, encoding="utf-8") as f:
         data = json.load(f)

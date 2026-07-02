@@ -1,7 +1,15 @@
-"""Which SDPA backend works on this Windows torch, and does torch.compile help?"""
+"""
+Which SDPA backend works on this Windows torch, and does torch.compile help?
+"""
+
+#%% Imports and constants
+
 import time, torch
 import torch.nn.functional as F
 from torch.nn.attention import sdpa_kernel, SDPBackend
+
+
+#%% Test execution
 
 q = torch.randn(16, 16, 1024, 64, device="cuda", dtype=torch.bfloat16)  # B,H,N,D
 for name, backend in [("FLASH", SDPBackend.FLASH_ATTENTION),

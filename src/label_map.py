@@ -1,4 +1,6 @@
-"""Canonical source-category -> first-pass target-class mapping (labels only; no paths).
+"""
+
+Canonical source-category -> first-pass target-class mapping (labels only; no paths).
 
 Single source of truth for the label set used by the manifest/split/copy/train/eval pipeline. The
 medium-granularity 29-class label set (27 animal classes + blank + setup_pickup) was agreed with
@@ -7,7 +9,10 @@ the dataset maintainer; see README.md and label_map_report.txt. Machine-specific
 loaded via
 ``path_config.load_path_config`` (see path_config.py), so this module is pure label logic and
 imports cleanly on any machine.
+
 """
+
+#%% Imports and constants
 
 # Canonical class order (index = training label id). 'EXCLUDE' is not a class;
 # images mapping to it are dropped from training.
@@ -23,6 +28,8 @@ CLASS_ORDER = [
 ]
 
 
+#%% Support functions
+
 def low(x):
     if x is None:
         return ""
@@ -31,11 +38,15 @@ def low(x):
     return str(x).strip().lower()
 
 
+#%% Category mapping functions
+
 def target_class(cat):
-    """Map a source category dict (name/class/order/family/genus) -> target class.
+    """
+    Map a source category dict (name/class/order/family/genus) -> target class.
 
     Returns 'EXCLUDE' for images that should be dropped from training.
     """
+
     n = low(cat["name"]); cl = low(cat.get("class")); o = low(cat.get("order"))
     fa = low(cat.get("family")); ge = low(cat.get("genus"))
 
@@ -131,3 +142,5 @@ def target_class(cat):
         return "mammal_other"
 
     return "EXCLUDE"
+
+# def target_class(...)

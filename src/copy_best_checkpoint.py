@@ -1,4 +1,6 @@
-"""Pick a run's best checkpoint and write a stripped, inference-ready copy to the run-folder root.
+"""
+
+Pick a run's best checkpoint and write a stripped, inference-ready copy to the run-folder root.
 
 Finds the epoch with the highest ``val/acc_macro`` across the run's metrics, then strips the
 optimizer/scheduler/callback state from that epoch's checkpoint (via strip_checkpoint.strip_one)
@@ -14,7 +16,11 @@ Errors if the chosen epoch's checkpoint file is missing.
 
 Usage:
   python copy_best_checkpoint.py <run-name> [--half]
+
 """
+
+#%% Imports and constants
+
 import argparse
 import csv
 import glob
@@ -26,9 +32,14 @@ from strip_checkpoint import strip_one
 METRIC = "val/acc_macro"
 
 
+#%% Support functions
+
 def best_epoch(run_dir):
-    """Return (best_epoch, {epoch: (step, score)}, [metrics_files]) using the highest-step row
-    per epoch and the max score across epochs (ties broken toward the later epoch)."""
+    """
+    Return (best_epoch, {epoch: (step, score)}, [metrics_files]) using the highest-step row
+    per epoch and the max score across epochs (ties broken toward the later epoch).
+    """
+
     files = sorted(glob.glob(os.path.join(run_dir, "metrics*.csv")))
     if not files:
         raise SystemExit(f"no metrics*.csv files in {run_dir}")
@@ -50,7 +61,10 @@ def best_epoch(run_dir):
     return best, by_epoch, files
 
 
+#%% Command-line driver
+
 def main():
+
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("run_name")

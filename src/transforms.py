@@ -1,4 +1,5 @@
-"""Preprocessing / augmentation for the California Small Animals classifier.
+"""
+Preprocessing / augmentation for the California Small Animals classifier.
 
 Pipeline (train):
   full frame -> crop real banner (kills timestamp/temp shortcut)
@@ -16,6 +17,9 @@ The val banner-crop is a flag so we can A/B "crop vs no-crop" at inference time.
 Camera is downward-facing => no canonical up/down once the banner is gone, so the
 full dihedral group is label-preserving. See README.
 """
+
+#%% Imports and constants
+
 import random
 
 import torch
@@ -27,8 +31,13 @@ IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 
 
+#%% Support functions
+
 def crop_banner(img, top_frac, bot_frac):
-    """Remove the top/bottom info-banner bands (fractions of height)."""
+    """
+    Remove the top/bottom info-banner bands (fractions of height).
+    """
+
     w, h = img.size
     t = int(round(h * top_frac))
     b = int(round(h * bot_frac))
@@ -38,12 +47,18 @@ def crop_banner(img, top_frac, bot_frac):
 
 
 def _add_synthetic_banner(img, max_frac=0.06):
-    """Overlay a content-free dark bar at top and/or bottom to mimic a foreign
-    camera's info banner (so the model learns to ignore such bars)."""
+    """
+    Overlay a content-free dark bar at top and/or bottom to mimic a foreign
+    camera's info banner (so the model learns to ignore such bars).
+    """
+
     w, h = img.size
     draw = ImageDraw.Draw(img)
+
     for edge in ("top", "bottom"):
-        if random.random() < 0.35:           # sometimes only one / neither edge
+
+        # sometimes only one / neither edge
+        if random.random() < 0.35:
             continue
         bh = int(round(h * random.uniform(0.02, max_frac)))
         if bh < 2:
@@ -63,12 +78,26 @@ def _add_synthetic_banner(img, max_frac=0.06):
             ln = random.randint(2, 8)
             v = random.randint(180, 255)
             draw.line([(x, y), (x + ln, y)], fill=(v, v, v), width=1)
+
+    # ...for each edge
+
     return img
 
 
+#%% Training transformation classes
+
+# ...one class for train-time transformations, one for val.
+
 class TrainTransform:
-    def __init__(self, img_size=448, banner_top=0.03, banner_bot=0.035,
-                 p_synth_banner=0.5, mean=IMAGENET_MEAN, std=IMAGENET_STD):
+
+    def __init__(self,
+                 img_size=448,
+                 banner_top=0.03,
+                 banner_bot=0.035,
+                 p_synth_banner=0.5,
+                 mean=IMAGENET_MEAN,
+                 std=IMAGENET_STD):
+
         self.s = img_size
         self.bt = banner_top
         self.bb = banner_bot
@@ -79,10 +108,11 @@ class TrainTransform:
                                    saturation=0.2, hue=0.03)
 
     def __call__(self, img):
+
         img = crop_banner(img, self.bt, self.bb)
         img = img.resize((self.s, self.s), Image.BILINEAR)        # squash
 
-        # --- dihedral (fill-free) ---
+        # dihedral (fill-free)
         if random.random() < 0.5:
             img = TF.hflip(img)
         if random.random() < 0.5:
@@ -91,7 +121,7 @@ class TrainTransform:
         if k:
             img = img.rotate(90 * k)                              # exact, no fill
 
-        # --- mild continuous jitter ---
+        # mild continuous jitter
         angle = random.uniform(-7, 7)
         tx = random.uniform(-0.06, 0.06) * self.s
         ty = random.uniform(-0.06, 0.06) * self.s
@@ -99,11 +129,11 @@ class TrainTransform:
         img = TF.affine(img, angle=angle, translate=(tx, ty), scale=scale,
                         shear=0.0, interpolation=TF.InterpolationMode.BILINEAR)
 
-        # --- synthetic banner (cross-camera banner robustness) ---
+        # synthetic banner (cross-camera banner robustness)
         if random.random() < self.p_banner:
             img = _add_synthetic_banner(img)
 
-        # --- photometric ---
+        # photometric
         img = self.jitter(img)
         if random.random() < 0.15:
             img = TF.gaussian_blur(img, kernel_size=3)
@@ -112,12 +142,22 @@ class TrainTransform:
         if random.random() < 0.15:
             t = t + torch.randn_like(t) * random.uniform(0.0, 0.03)
             t = t.clamp(0, 1)
+
         return TF.normalize(t, self.mean, self.std)
+
+# ...class TrainTransform
 
 
 class ValTransform:
-    def __init__(self, img_size=448, banner_top=0.03, banner_bot=0.035,
-                 crop_banner_flag=True, mean=IMAGENET_MEAN, std=IMAGENET_STD):
+
+    def __init__(self,
+                 img_size=448,
+                 banner_top=0.03,
+                 banner_bot=0.035,
+                 crop_banner_flag=True,
+                 mean=IMAGENET_MEAN,
+                 std=IMAGENET_STD):
+
         self.s = img_size
         self.bt = banner_top
         self.bb = banner_bot

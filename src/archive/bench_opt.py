@@ -1,5 +1,10 @@
-"""Find a fast config for eva02_large@448 on a 4090: autocast vs pure-bf16,
-grad-checkpointing, forced SDPA backend, torch.compile."""
+"""
+Find a fast config for eva02_large@448 on a 4090: autocast vs pure-bf16,
+grad-checkpointing, forced SDPA backend, torch.compile.
+"""
+
+#%% Imports and constants
+
 import time
 from contextlib import nullcontext
 import torch
@@ -11,7 +16,10 @@ torch.set_float32_matmul_precision("high")
 FE = [SDPBackend.FLASH_ATTENTION, SDPBackend.EFFICIENT_ATTENTION]
 
 
+#%% Support functions
+
 def run(tag, bs, grad_ckpt, mode, backends=None, compile=False, iters=12, warm=5):
+
     torch.cuda.empty_cache(); torch.cuda.reset_peak_memory_stats()
     try:
         model = timm.create_model(M, pretrained=False, num_classes=30).cuda()
@@ -51,6 +59,8 @@ def run(tag, bs, grad_ckpt, mode, backends=None, compile=False, iters=12, warm=5
                 pass
         torch.cuda.empty_cache()
 
+
+#%% Test execution
 
 run("autocast + grad_ckpt           bs16", 16, True, "autocast")
 run("autocast + memeff + nockpt     bs16", 16, False, "autocast", FE)

@@ -1,14 +1,22 @@
-"""Analyze the California Small Animals COCO-Camera-Traps metadata."""
+"""
+
+Analyze the California Small Animals COCO Camera Traps metadata.
+
+"""
+
+#%% Headers and constants
+
 import json
 import os
 from collections import Counter, defaultdict
 
-META = r"E:\data\california-small-animals\california_small_animals_with_sequences.json"
-OUT = r"C:\temp\california-small-animals-output"
-os.makedirs(OUT, exist_ok=True)
+metadata_file = r"E:\data\california-small-animals\california_small_animals_with_sequences.json"
+
+
+#%% Analyze metadata
 
 print("Loading JSON (1.3GB, give it a minute)...", flush=True)
-with open(META, "r", encoding="utf-8") as f:
+with open(metadata_file, "r", encoding="utf-8") as f:
     data = json.load(f)
 
 print("Top-level keys:", list(data.keys()))
@@ -84,5 +92,3 @@ for l, fs in loc2folders.items():
 print("\nSample file_names:")
 for im in images[:5]:
     print("  ", im["file_name"])
-
-print("\nDONE")

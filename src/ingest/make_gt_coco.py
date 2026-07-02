@@ -1,4 +1,6 @@
-"""Build a master COCO Camera Traps ground-truth file for the curated training dataset.
+"""
+
+Build a master COCO Camera Traps ground-truth file for the curated training dataset.
 
 Covers every image in the resized ``train/`` + ``val/`` tree under ``TRAIN_ROOT`` and emits a
 single COCO CT JSON whose annotations carry the folder-derived class label. This is the reusable
@@ -23,7 +25,11 @@ Conventions:
     ids and the prediction files' ``classification_categories`` keys).
   - ``image["split"]``: ``"train"`` or ``"val"``.
 One annotation per image (single label).
+
 """
+
+#%% Imports and constants
+
 import os
 import sys
 import json
@@ -38,8 +44,13 @@ from path_config import load_path_config
 SPLITS = ["train", "val"]
 
 
+#%% Support functions
+
 def existing_images(train_root):
-    """Set of '<split>/<class>/<file>.jpg' rel-paths actually present on disk."""
+    """
+    Set of '<split>/<class>/<file>.jpg' rel-paths actually present on disk.
+    """
+
     existing = set()
     for split in SPLITS:
         split_dir = os.path.join(train_root, split)
@@ -56,7 +67,10 @@ def existing_images(train_root):
 
 
 def seq_extra_from_meta(meta_path):
-    """image_id -> (seq_num_frames, datetime) from the canonical metadata."""
+    """
+    image_id -> (seq_num_frames, datetime) from the canonical metadata.
+    """
+
     print(f"loading metadata for sequence info: {meta_path}", flush=True)
     with open(meta_path, encoding="utf-8") as f:
         data = json.load(f)
@@ -65,7 +79,10 @@ def seq_extra_from_meta(meta_path):
     return extra
 
 
+#%% Main dataset construction function
+
 def build(train_root, out_base, meta):
+
     name_to_id = {name: i for i, name in enumerate(CLASS_ORDER)}
     categories = [{"id": i, "name": name} for i, name in enumerate(CLASS_ORDER)]
 
@@ -127,8 +144,13 @@ def build(train_root, out_base, meta):
     }
     return coco
 
+# ...def build(...)
+
+
+#%% Command-line driver
 
 def main():
+
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--path-config", required=True,
                     help="JSON file of machine paths (TRAIN_ROOT, OUTPUT_ROOT, METADATA_FILE)")

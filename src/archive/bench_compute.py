@@ -1,10 +1,19 @@
-"""Isolate pure GPU fwd+bwd throughput for eva02_large@448 (no dataloader)."""
+"""
+Isolate pure GPU fwd+bwd throughput for eva02_large@448 (no dataloader).
+"""
+
+#%% Imports and constants
+
 import time, torch, timm
 
 M = "eva02_large_patch14_448.mim_m38m_ft_in22k_in1k"
 torch.set_float32_matmul_precision("high")
 
+
+#%% Test execution
+
 for grad_ckpt in (True, False):
+
     for bs in (16, 24):
         try:
             model = timm.create_model(M, pretrained=False, num_classes=30).cuda().train()

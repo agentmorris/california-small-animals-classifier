@@ -1,4 +1,7 @@
-"""Measure the Reconyx info-banner band heights (top & bottom) across a sample."""
+"""
+Measure the Reconyx info-banner band heights (top & bottom) across a sample.
+"""
+
 import argparse, os
 import numpy as np
 import pandas as pd
@@ -15,9 +18,12 @@ df = pd.read_parquet(os.path.join(OUT, "split.parquet"))
 df["subds"] = df.file_name.str.split("/").str[0]
 
 def band_heights(arr):
-    """Return (top_px, bottom_px) of the dark banner bands.
+    """
+    Return (top_px, bottom_px) of the dark banner bands.
     Banner rows are mostly near-black with sparse bright text; scene rows have
-    lots of mid-gray. Detect contiguous 'banner-like' rows from each edge."""
+    lots of mid-gray. Detect contiguous 'banner-like' rows from each edge.
+    """
+
     h, w = arr.shape
     blackfrac = (arr < 40).mean(axis=1)      # fraction near-black per row
     brightfrac = (arr > 200).mean(axis=1)    # fraction near-white (text) per row

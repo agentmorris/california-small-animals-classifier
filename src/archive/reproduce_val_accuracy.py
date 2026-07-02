@@ -1,4 +1,6 @@
-"""Recompute val accuracy from a MegaDetector-format predictions file and check it
+"""
+
+Recompute val accuracy from a MegaDetector-format predictions file and check it
 against the numbers logged during training (metrics.csv).
 
 True labels come from the val folder structure: inference is run on the val/ tree,
@@ -8,7 +10,11 @@ match torchmetrics MulticlassAccuracy(average="micro"/"macro") used in training.
 
 Usage:
   python reproduce_val_accuracy.py <predictions.json> [--metrics-csv metrics.csv] [--epoch N]
+
 """
+
+#%% Imports and constants
+
 import argparse
 import json
 from collections import defaultdict
@@ -16,7 +22,9 @@ from collections import defaultdict
 import pandas as pd
 
 
+#%% Command-line driver
 def main():
+
     ap = argparse.ArgumentParser()
     ap.add_argument("predictions", help="MegaDetector-format predictions JSON (run on val/)")
     ap.add_argument("--metrics-csv", default=None, help="training metrics.csv to compare against")

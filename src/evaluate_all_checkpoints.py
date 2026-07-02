@@ -1,4 +1,5 @@
-"""Evaluate every checkpoint in a folder on a validation set, to trace val accuracy over training.
+"""
+Evaluate every checkpoint in a folder on a validation set, to trace val accuracy over training.
 
 For each ``*.ckpt`` in the checkpoint folder this:
   1. strips it to a temporary inference checkpoint (reusing strip_checkpoint.strip_one),
@@ -20,6 +21,9 @@ Usage:
   python evaluate_all_checkpoints.py <checkpoint-folder> <image-folder> <gt.json> <output-folder>
       [--batch-size N] [--workers N] [--precision bf16|fp32] [--classifications N] [--devices N]
 """
+
+#%% Imports and constants
+
 import argparse
 import csv
 import glob
@@ -34,8 +38,13 @@ from strip_checkpoint import strip_one
 from run_inference import run_inference
 
 
+#%% Support functions
+
 def load_truth(gt_path):
-    """Map val-relative file path -> true class name, from a COCO ground-truth file."""
+    """
+    Map val-relative file path -> true class name, from a COCO ground-truth file.
+    """
+
     with open(gt_path, encoding="utf-8") as f:
         coco = json.load(f)
     id_to_name = {c["id"]: c["name"] for c in coco["categories"]}
@@ -48,7 +57,10 @@ def load_truth(gt_path):
 
 
 def score(md_path, truth):
-    """Micro and macro accuracy of an MD results file vs the truth map (compared by class name)."""
+    """
+    Micro and macro accuracy of an MD results file vs the truth map (compared by class name).
+    """
+
     with open(md_path, encoding="utf-8") as f:
         d = json.load(f)
     id_to_name = d["classification_categories"]
@@ -79,7 +91,10 @@ def list_checkpoints(folder):
                   if not f.endswith(".stripped.ckpt"))
 
 
+#%% Command-line driver
+
 def main():
+
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("checkpoint_folder")
@@ -105,7 +120,9 @@ def main():
 
     cache = {}  # timm data-config cache shared across checkpoints (same model_name)
     rows = []
+
     for i, ckpt in enumerate(ckpts, 1):
+
         rel = os.path.relpath(ckpt, args.checkpoint_folder).replace("\\", "/")
         stem = os.path.splitext(os.path.basename(ckpt))[0]
         is_last = stem.lower() == "last"
@@ -134,6 +151,8 @@ def main():
                      "global_step": global_step if global_step is not None else -1,
                      "accuracy": micro, "macro_accuracy": macro})
 
+    # ...for each checkpoint
+
     # checkpoint_index: -1 for last.ckpt; others 0-based in training order (global_step, then name).
     ordered = sorted((r for r in rows if not r["is_last"]),
                      key=lambda r: (r["global_step"], r["checkpoint_filename"]))
@@ -150,6 +169,7 @@ def main():
             w.writerow(r)
     print(f"\nwrote {out_csv} ({len(rows)} rows)")
 
+# ...def main(...)
 
 if __name__ == "__main__":
     main()

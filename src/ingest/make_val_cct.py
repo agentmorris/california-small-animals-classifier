@@ -1,11 +1,17 @@
-"""Generate the val-only COCO Camera Traps file (val_cct.json) from the master training GT.
+"""
+
+Generate the val-only COCO Camera Traps file (val_cct.json) from the master training GT.
 
 Same images/labels as the 'val' split of the master GT, but with **val-relative** paths (no
 leading 'val/'), so it matches the val prediction files and MegaDetector's
 analyze_classification_results. Per-image sequence information is preserved. Written indent=1.
 
 Output: <TRAIN_ROOT>/val/val_cct.json
+
 """
+
+#%% Imports and constants
+
 import os
 import sys
 import json
@@ -16,7 +22,10 @@ from path_config import load_path_config
 PFX = "val/"
 
 
+#%% Command-line driver
+
 def main():
+
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--path-config", required=True,
                     help="JSON file of machine paths (TRAIN_ROOT)")

@@ -137,7 +137,7 @@ Because the model tends to peak within the first epoch (and we write extra inter
 ```bash
 python evaluate_all_checkpoints.py ^
   "c:\temp\california-small-animals-output\runs\eva02-20260629-lp\checkpoints" ^
-  "c:\data\california-small-animals-training\val" ^
+  "f:\data\california-small-animals-training\val" ^
   "f:\data\california-small-animals-training\val\val_cct.json" ^
   "c:\temp\california-small-animals-output\runs\eva02-20260629-lp\eval" ^
   --devices 2

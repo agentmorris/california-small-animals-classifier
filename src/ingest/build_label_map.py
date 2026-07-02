@@ -1,13 +1,20 @@
-"""Define the first-pass (medium-granularity) flat label map and report real image counts.
+"""
+Define the first-pass (medium-granularity) flat label map and report real image counts.
 
 Maps all 257 source categories -> ~28 target classes, then counts SINGLE-annotation
 images per target (multi-annotation images are dropped from the first pass).
 """
+
+#%% Imports and constants
+
 import json, os, csv
 from collections import Counter, defaultdict
 
-META = r"E:\data\california-small-animals\california_small_animals_with_sequences.json"
-OUT = r"C:\temp\california-small-animals-output"
+metadata_file = r"E:\data\california-small-animals\california_small_animals_with_sequences.json"
+output_file = r"C:\temp\california-small-animals-output"
+
+
+#%% Support functions
 
 def low(x):
     if x is None: return ""
@@ -15,6 +22,7 @@ def low(x):
     return str(x).strip().lower()
 
 def target_class(cat):
+
     n = low(cat["name"]); cl = low(cat.get("class")); o = low(cat.get("order"))
     fa = low(cat.get("family")); ge = low(cat.get("genus"))
 
@@ -84,8 +92,12 @@ def target_class(cat):
 
     return "EXCLUDE"
 
+# ...def target_class(...)
+
+#%% Execution
+
 print("Loading...", flush=True)
-with open(META, encoding="utf-8") as f:
+with open(metadata_file, encoding="utf-8") as f:
     data = json.load(f)
 cats = {c["id"]: c for c in data["categories"]}
 anns = data["annotations"]
@@ -145,7 +157,7 @@ for t in ORDER:
         print(f"   {n:>9,}  {name}")
 
 # write csv
-with open(os.path.join(OUT,"label_map.csv"),"w",newline="",encoding="utf-8") as f:
+with open(os.path.join(output_file,"label_map.csv"),"w",newline="",encoding="utf-8") as f:
     w = csv.writer(f); w.writerow(["source_category","ann_count","target_class"])
     for cid,c in sorted(cats.items(), key=lambda kv:-acount.get(kv[0],0)):
         w.writerow([c["name"], acount.get(cid,0), src2tgt[cid]])

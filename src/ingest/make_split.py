@@ -1,4 +1,6 @@
-"""Class-aware 85/15 train/val split BY CAMERA, plus blank downsampling.
+"""
+
+Class-aware 85/15 train/val split BY CAMERA, plus blank downsampling.
 
 - Every camera goes entirely to train or val (no camera in both).
 - Greedy, rarest-class-first assignment so each class lands ~15% in val and is
@@ -9,7 +11,11 @@
 Outputs:
   split.parquet          per kept image: + 'split' (train/val) + 'dest_rel' path
   camera_split.csv       camera -> split assignment (locked / documented)
+
 """
+
+#%% Imports and constants
+
 import argparse
 import os
 from collections import Counter, defaultdict
@@ -27,14 +33,18 @@ BLANK_CAP_PER_CAM = 300
 SEED = 20260608
 
 
+#%% Split assignment functions
+
 def assign_split(df):
-    """ILP camera->{train,val}: minimize per-class RELATIVE deviation from VAL_FRAC.
+    """
+    ILP camera->{train,val}: minimize per-class RELATIVE deviation from VAL_FRAC.
 
     Each camera is one binary var x_cam (1 = val). For each class we penalize
     |val_images_c - VAL_FRAC * total_c| weighted by 1/total_c, so a 1k-image class
     and a 250k-image class are both pushed toward 15% in relative terms. Rare
     classes can't hit exactly 15% (lumpy), but this gets as close as possible.
     """
+
     cc = (df.groupby(["location", "target_class"], observed=True)
             .size().unstack(fill_value=0))
     cameras = list(cc.index)
@@ -66,12 +76,17 @@ def assign_split(df):
     print(f"ILP status: {status}")
     split = {cam: ("val" if x[cam].value() and x[cam].value() > 0.5 else "train")
              for cam in cameras}
+
     return split
 
+# def assign_split(...)
 
 def downsample_blanks(df):
-    """Keep BLANK_FRAMES_PER_SEQ earliest frame(s) per blank sequence, then cap
-    BLANK_CAP_PER_CAM per camera. Returns index of blank rows to KEEP."""
+    """
+    Keep BLANK_FRAMES_PER_SEQ earliest frame(s) per blank sequence, then cap
+    BLANK_CAP_PER_CAM per camera. Returns index of blank rows to KEEP.
+    """
+
     blank = df[df.target_class == "blank"]
     # earliest frame(s) per sequence
     b = blank.sort_values(["seq_id", "frame_num", "image_id"])
@@ -82,7 +97,10 @@ def downsample_blanks(df):
     return set(capped.index)
 
 
+#%% Command-line driver
+
 def main():
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--path-config", required=True, help="JSON file of machine paths (OUTPUT_ROOT)")
     args = ap.parse_args()

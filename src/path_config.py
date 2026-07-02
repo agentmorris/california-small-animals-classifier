@@ -1,4 +1,6 @@
-"""Per-machine / per-environment path configuration.
+"""
+
+Per-machine / per-environment path configuration.
 
 All machine-specific absolute paths live in a small JSON file (passed to scripts via
 ``--path-config``), not in the code, so the same scripts run unchanged on any machine. Note this
@@ -15,7 +17,11 @@ Required keys (all must be present):
                   training. Use [] for none, but the key itself is still required.
 
 See ``path_config.example.json`` for a template.
+
 """
+
+#%% Imports and constants
+
 import json
 import os
 from types import SimpleNamespace
@@ -23,8 +29,12 @@ from types import SimpleNamespace
 REQUIRED = ("METADATA_FILE", "IMAGE_ROOT", "OUTPUT_ROOT", "TRAIN_ROOT", "EXCLUDE_FILES")
 
 
+#%% Path config functions
 def load_path_config(path):
-    """Load and validate a path-config JSON file; returns a namespace with the REQUIRED keys."""
+    """
+    Load and validate a path-config JSON file; returns a namespace with the REQUIRED keys.
+    """
+
     if not path:
         raise SystemExit("a --path-config JSON file is required")
     if not os.path.isfile(path):
@@ -40,11 +50,13 @@ def load_path_config(path):
 
 
 def load_excluded_guids(exclude_files):
-    """Collect image guids flagged 'incorrect' across one or more manual-review JSON files.
+    """
+    Collect image guids flagged 'incorrect' across one or more manual-review JSON files.
 
     Each file maps an original relative path -> outcome; the guid is the filename stem. Used by
     copy_resize.py and train.py so both apply the same exclusions.
     """
+
     guids = set()
     for p in exclude_files:
         if not p or not os.path.exists(p):
@@ -57,4 +69,5 @@ def load_excluded_guids(exclude_files):
             if outcome == "incorrect":
                 guids.add(os.path.splitext(os.path.basename(relpath))[0])
         print(f"  loaded {n:,} 'incorrect' exclusions from {p}")
+
     return guids

@@ -1,4 +1,7 @@
-"""Spot-check: do source images exist, and what do resized outputs look like?"""
+"""
+Spot-check: do source images exist, and what do resized outputs look like?
+"""
+
 import argparse, io, os, time, random
 import pandas as pd
 from PIL import Image

@@ -1,4 +1,5 @@
-"""Copy + resize the selected images into the train/val/<class> folder tree.
+"""
+Copy + resize the selected images into the train/val/<class> folder tree.
 
 Stores the WHOLE frame (banner included) resized so the short side is SHORT_SIDE
 (downscale only), JPEG quality QUALITY. Banner cropping is done later in the
@@ -9,6 +10,9 @@ Usage:
   python copy_resize.py                  # full run
   python copy_resize.py --workers 24
 """
+
+#%% Imports and constants
+
 import argparse
 import os
 import time
@@ -24,7 +28,13 @@ SHORT_SIDE = 512
 QUALITY = 90
 
 
+#%% Support functions
+
 def process(task):
+    """
+    Resize one image
+    """
+
     src, dst = task
     if os.path.exists(dst):
         return ("skip", dst)
@@ -44,6 +54,8 @@ def process(task):
     except Exception as e:
         return ("err", f"{src}\t{type(e).__name__}: {e}")
 
+
+#%% Command-line driver
 
 def main():
     ap = argparse.ArgumentParser()
@@ -110,6 +122,7 @@ def main():
             f.write("\n".join(errors))
         print(f"wrote {len(errors)} errors -> {log}")
 
+# ...def main(...)
 
 if __name__ == "__main__":
     main()

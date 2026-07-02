@@ -1,4 +1,5 @@
-"""Strip a Lightning training checkpoint into a compact, self-contained inference
+"""
+Strip a Lightning training checkpoint into a compact, self-contained inference
 checkpoint.
 
 Lightning checkpoints (~3.5 GB here) carry optimizer state, LR schedulers, callback
@@ -12,6 +13,9 @@ Usage:
     <file-or-dir>  a .ckpt file, or a folder (all *.ckpt except *.stripped.ckpt)
     --half         store weights as float16 (smaller; default keeps float32)
 """
+
+#%% Imports and constants
+
 import argparse
 import glob
 import os
@@ -23,18 +27,28 @@ from label_map import CLASS_ORDER
 from transforms import IMAGENET_MEAN  # noqa: F401  (kept for reference)
 
 FORMAT = "csa-classifier-inference-v1"
+
 # Banner-crop fractions used by the training val transform (see transforms.py).
+#
+# Used here just to store as metadata in the stripped checkpoint; this moodule
+# doesn't apply any transformations.
 BANNER_TOP, BANNER_BOT = 0.03, 0.035
 
 
+#%% Support functions
+
 def resolve_data_cfg(model_name):
+
     m = timm.create_model(model_name, pretrained=False, num_classes=len(CLASS_ORDER))
     dc = timm.data.resolve_model_data_config(m)
     del m
     return int(dc["input_size"][-1]), list(map(float, dc["mean"])), list(map(float, dc["std"]))
 
 
+#%% Checkpoint-stripping function
+
 def strip_one(src, data_cfg_cache, half=False, dst=None):
+
     ckpt = torch.load(src, map_location="cpu", weights_only=False)
     hp = ckpt.get("hyper_parameters", {})
     model_name = hp.get("model_name")
@@ -74,7 +88,13 @@ def strip_one(src, data_cfg_cache, half=False, dst=None):
             ckpt.get("epoch"), ckpt.get("global_step"))
 
 
+# ...def def strip_one(...)
+
+
+#%% Command-line driver
+
 def main():
+
     ap = argparse.ArgumentParser()
     ap.add_argument("path", help="a .ckpt file or a folder of checkpoints")
     ap.add_argument("--half", action="store_true", help="store weights as float16")

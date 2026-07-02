@@ -1,4 +1,5 @@
-"""Train the first-pass California Small Animals classifier (eva02_large @ 448, PTL).
+"""
+Train the California Small Animals classifier (eva02_large @ 448, PTL).
 
 Reads split.parquet, builds train/val datasets from the F: folder tree, fine-tunes
 a timm backbone with the agreed augmentation, logs micro + macro accuracy, and
@@ -8,6 +9,9 @@ Examples:
   python train.py --devices 1 --benchmark-steps 60     # quick throughput probe
   python train.py --devices 2                           # full run, both GPUs (DDP)
 """
+
+#%% Imports and constants
+
 import argparse
 import datetime
 import os
@@ -38,8 +42,13 @@ from transforms import TrainTransform, ValTransform
 CLASS_TO_IDX = {c: i for i, c in enumerate(CLASS_ORDER)}
 
 
+#%% Support classes
+
 class Throughput(L.Callback):
-    """Report steady-state images/sec (skips warmup steps)."""
+    """
+    Report steady-state images/sec (skips warmup steps).
+    """
+
     def __init__(self, batch_size, warmup=8):
         self.batch_size = batch_size
         self.warmup = warmup
@@ -71,7 +80,8 @@ class Throughput(L.Callback):
 
 
 class IntermediateCheckpoint(L.Callback):
-    """Write `per_epoch` EXTRA weights-only checkpoints spread through each epoch.
+    """
+    Write `per_epoch` EXTRA weights-only checkpoints spread through each epoch.
 
     Fires at i/(per_epoch+1) of the epoch for i in 1..per_epoch (per_epoch=1 -> halfway;
     per_epoch=2 -> 1/3 and 2/3; per_epoch=8 -> 1/9..8/9). Targets are recomputed each epoch (no
@@ -79,6 +89,7 @@ class IntermediateCheckpoint(L.Callback):
     usual full epoch-end checkpoints. Saved weights-only (~1.2 GB, no optimizer) for cheap offline
     validation later; loadable by strip_checkpoint.py / run_inference.py.
     """
+
     def __init__(self, dirpath, run_name, per_epoch):
         self.dirpath = dirpath
         self.run_name = run_name
@@ -98,6 +109,7 @@ class IntermediateCheckpoint(L.Callback):
 
 
 class CSADataset(Dataset):
+
     def __init__(self, paths, labels, transform):
         self.paths = paths
         self.labels = labels
@@ -120,6 +132,7 @@ class CSADataset(Dataset):
 
 
 def load_frames(split_path, train_root, exclude_files, apply_exclude=True):
+
     df = pd.read_parquet(split_path, columns=["image_id", "dest_rel", "target_class", "split"])
     if apply_exclude:
         excluded = load_excluded_guids(exclude_files)
@@ -133,6 +146,7 @@ def load_frames(split_path, train_root, exclude_files, apply_exclude=True):
 
 
 def class_weights(train_labels, scheme="sqrt", cap=10.0):
+
     counts = np.bincount(train_labels, minlength=len(CLASS_ORDER)).astype(np.float64)
     counts = np.clip(counts, 1, None)
     freq = counts / counts.sum()
@@ -150,9 +164,11 @@ def class_weights(train_labels, scheme="sqrt", cap=10.0):
 
 
 class Classifier(L.LightningModule):
+
     def __init__(self, model_name, num_classes, lr, weight_decay, label_smoothing,
                  warmup_epochs, max_epochs, cls_weights, grad_ckpt=True, compile=True,
                  freeze_backbone=False, layer_decay=1.0, warmup_steps=0):
+
         super().__init__()
         self.save_hyperparameters(ignore=["cls_weights"])
         self.model = timm.create_model(model_name, pretrained=True,
@@ -240,8 +256,13 @@ class Classifier(L.LightningModule):
             interval = "epoch"
         return {"optimizer": opt, "lr_scheduler": {"scheduler": sched, "interval": interval}}
 
+# ...class Classifier
+
+
+#%% Command-line driver
 
 def main():
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--path-config", required=True,
                     help="JSON file of machine-specific paths (OUTPUT_ROOT, TRAIN_ROOT, "
@@ -302,6 +323,7 @@ def main():
     run_name = args.run_name
     run_dir = os.path.join(runs_dir, run_name)
     final_ckpt_dir = os.path.join(run_dir, "checkpoints")  # durable home, in the run folder
+
     # Optionally write checkpoints to a separate (e.g. fast WSL-local) folder during the run so the
     # big per-epoch writes don't hit the slow/9p run folder; moved into the run folder at the end of
     # a clean run (see after trainer.fit). metrics.csv / hparams.yaml / log stay in the run folder.
@@ -421,6 +443,7 @@ def main():
             shutil.move(os.path.join(ckpt_dir, n), os.path.join(final_ckpt_dir, n))
         print("checkpoint move complete", flush=True)
 
+# ...def main(...)
 
 if __name__ == "__main__":
     main()
