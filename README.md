@@ -109,10 +109,6 @@ export RUN_NAME="eva02-20260629-lp"
   --path-config configs/wingpu-wsl.json
 ```
 
-### Hyperparameter notes
-
-* The default learning rate schedule looks like [1e-6, 1-e4, 9.93e-5, 9.73e-5, 9.40e-5, 8.95e-5].  This is what we used for eva02-20260628.  78% macro accuracy.
-
 ### Resuming training
 
 Resume an interrupted training run by passing the same value for `--run-name`, along with `--resume last`.  It is recommended to supply values for all the other parameters that match the original training run, but it's not required, e.g., you could theoretically change the batch size between starting a training run and resuming the same training run.
