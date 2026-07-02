@@ -17,7 +17,7 @@ This README is not intended (yet) as an external introduction to the project, it
 
 See `analyze_metadata.py` / `analyze_taxonomy.py` (in the output folder) for the full breakdown, and `build_label_map.py` for the source→target category mapping.
 
-## Plan
+## Training strategy
 
 - Single, flat multi-class classifier over a medium-granularity label set (29 classes = 27 animal + `blank` + `setup_pickup`); see `label_map.py`. Provenance (camera split + category assignments) is recorded in `training_info.20260608.json`.  Here we use "single, flat" to contrast this approach with a hierarchical approach that we may pursue in the future, where a first model classifies, e.g., blank/non-blank, or blank/mammal/reptile/bird/amphibian, etc., and subsequent, taxa-specific models classify species.
 - Split by camera, 85/15 train/val, class-aware via ILP (every class lands ~15% in val and appears on both sides).  Locked in `camera_split.csv`. See `make_split.py`.
@@ -25,7 +25,15 @@ See `analyze_metadata.py` / `analyze_taxonomy.py` (in the output folder) for the
 - Stored training copies: whole frame resized to ~512px short side (JPEG q90) under `F:\data\california-small-animals-training` as `train/<class>/<camera>__<id>.jpg`.
 - Backbone: timm `eva02_large_patch14_448.mim_m38m_ft_in22k_in1k` @ 448px, trained with PyTorch Lightning on 2x RTX 4090 (DDP). Checkpoint every epoch.
 
-### Training environment
+### Preprocessing and augmentation
+
+- **448×448 input by squashing the whole frame**.  No scale-crop, no center-crop. With image-level labels and a small animal anywhere in frame, aggressive `RandomResizedCrop` would frequently crop the animal out, and val center-crop would clip edge animals. The downward-facing/baited-box geometry means low scale variation, so the whole frame at a fixed scale is fine, and train/val share the same field of view.
+- **Info-banner handling.** Reconyx top/bottom banners carry timestamp + temperature (a shortcut the model could exploit, that won't transfer to other cameras) and are the only consistent orientation cue. We *crop the banner at training* (measured for this dataset) and add *synthetic-banner augmentation* (random dark bars of varying height/content at top/bottom) so the model learns to ignore arbitrary banners on *other* cameras at inference. Day/night info still comes for free from IR-grayscale vs daytime color. The inference script makes the banner crop configurable (independent top/bottom; default off — robust thanks to the synthetic-banner aug).
+- **Geometric aug** (banner cropped ⇒ no canonical up/down): horizontal and vertical flips, 90°/mild rotation, mild affine translate/scale with reflection padding. Position jitter specifically fights camera-background memorization (cameras are static and we split by camera).
+- **Photometric aug**: brightness/contrast/saturation/hue, mild blur/noise.
+- Class imbalance handled at train time (balanced sampling / loss weighting), not by deleting animal data.
+
+## Training environment
 
 Native Windows PyTorch is missing FlashAttention/mem-efficient SDPA (falls back to the slow math kernel), Triton (so `torch.compile` won't run), and NCCL (gloo-only multi-GPU). Measured eva02_large@448 at only ~20 img/s/GPU on Windows. Training therefore runs in WSL (Ubuntu, conda env `california-small-animals-wsl`), which has all three. Data is read from `/mnt/f`; logs/checkpoints go to `/mnt/c/temp/california-small-animals-output`. Launch via `train.sh`.
 
@@ -33,7 +41,7 @@ Fast config (accuracy-safe): autocast bf16 (fp32 master) + grad-checkpointing + 
 
 Performance notes: `torch.compile` + DDP needs `torch._dynamo.config.optimize_ddp = False` (DDPOptimizer chokes on EVA's rope/SDPA subgraph); `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` avoids compile-time fragmentation OOMs; per-GPU batch 24. Measured \~64 img/s on 2 GPUs (both \~100% util, \~12 GB each), \~4.2 h/epoch (18,618 steps).
 
-### The path config file
+## The path config file
 
 All machine-specific absolute paths live in a small JSON file passed to every script via `--path-config`, so nothing under `src/` (or `train.sh`) hard-codes a path and the same code runs unchanged on any machine. `src/path_config.py` loads and validates it; `train.sh` reads `OUTPUT_ROOT` from it to place the run folder.
 
@@ -61,7 +69,7 @@ Each script reads only the keys it needs (e.g. `train.py` uses `OUTPUT_ROOT`, `T
 }
 ```
 
-### Starting training
+## Starting training
 
 From a WSL shell, in the repo root, in a conda environment with requirements.txt installed:
 
@@ -105,7 +113,6 @@ export RUN_NAME="eva02-20260629-lp"
 
 * The default learning rate schedule looks like [1e-6, 1-e4, 9.93e-5, 9.73e-5, 9.40e-5, 8.95e-5].  This is what we used for eva02-20260628.  78% macro accuracy.
 
-
 ### Resuming training
 
 Resume an interrupted training run by passing the same value for `--run-name`, along with `--resume last`.  It is recommended to supply values for all the other parameters that match the original training run, but it's not required, e.g., you could theoretically change the batch size between starting a training run and resuming the same training run.
@@ -128,32 +135,7 @@ Training losses are updated every batch, validation metrics are written every ep
 watch -n 10 tail -n 20 /mnt/c/temp/california-small-animals-output/runs/${RUN_NAME}/metrics.csv
 ```
 
-### When training finishes
-
-#### Computing accuracy metrics for all checkpoints
-
-Because the model tends to peak within the first epoch (and we write extra intermediate checkpoints through each epoch via `--intermediate-checkpoints-per-epoch`), we want validation accuracy for *every* checkpoint, not just the once-per-epoch numbers in `metrics.csv`. `evaluate_all_checkpoints.py` does that: it takes a checkpoint folder, an image folder, a ground-truth COCO file, and an output folder, and for each `*.ckpt` it strips the checkpoint to a temporary inference checkpoint (via `strip_checkpoint.py`), runs inference (via `run_inference.py`, sharding across GPUs with `--devices`), writes a MegaDetector-format results file into the output folder, and scores it against the ground truth (micro accuracy and macro / mean-per-class recall, compared by class name).
-
-```bash
-python evaluate_all_checkpoints.py ^
-  "c:\temp\california-small-animals-output\runs\eva02-20260629-lp\checkpoints" ^
-  "f:\data\california-small-animals-training\val" ^
-  "f:\data\california-small-animals-training\val\val_cct.json" ^
-  "c:\temp\california-small-animals-output\runs\eva02-20260629-lp\eval" ^
-  --devices 2
-```
-
-It runs on native Windows (like all our inference). The output folder ends up with one `<checkpoint-stem>.json` per checkpoint plus `accuracy_by_checkpoint.csv`, which has one row per checkpoint with columns `checkpoint_filename`, `checkpoint_index`, `accuracy` (micro), and `macro_accuracy`. `checkpoint_index` is -1 for `last.ckpt` and the 0-based training order (by `global_step`) for the rest, so sorting by it gives the chronological accuracy curve across both the intermediate and end-of-epoch checkpoints. The pass-through flags `--batch-size`, `--workers`, `--precision`, `--classifications`, and `--devices` are forwarded to each `run_inference` call (in practice only `--devices 2` is changed from the defaults; `run_inference` handles the multi-GPU split, so this script does not parallelize on its own). The run is resumable: a checkpoint whose results JSON already exists is re-scored without re-running inference, so delete a JSON to force its recomputation. Expect roughly 15 to 20 minutes per checkpoint over the full val set at `--devices 2`.
-
-#### Extracting the best checkpoint
-
-After a run finishes (or you stop it early), the usual next step is to extract the single best epoch as a compact, inference-ready checkpoint. `copy_best_checkpoint.py <run-name>` does this: it finds the epoch with the highest `val/acc_macro`, strips the optimizer/scheduler/callback state from that epoch's checkpoint (reusing `strip_checkpoint.py`), and writes `<run-name>.best.epochNN.stripped.pt` to the run-folder root. That `.stripped.pt` is the self-describing inference format documented under "Inference-ready checkpoints", and is what `run_inference.py` consumes. The script errors if the chosen epoch's checkpoint is missing; pass `--half` to store fp16 weights.
-
-```bash
-python copy_best_checkpoint.py ${RUN_DIR}
-```
-
-It reads every `metrics*.csv` in the run folder, not just `metrics.csv`, because a resumed run spreads its per-epoch history across multiple files (see "Resuming training"). If the same epoch appears in more than one file (an abandoned attempt plus its post-resume redo), the highest-`step` row wins so the score matches the checkpoint actually on disk; ties on `val/acc_macro` go to the later epoch.
+## When training finishes
 
 ### Output folder structure
 
@@ -177,15 +159,32 @@ Per-run folder `runs/<run-name>/`:
 
 Archive folder (`archive`) — one-off scripts, exploratory logs, and throwaway debug/verification outputs. Anything clearly not reusable across runs should go *straight here* rather than the base folder, so the base folder stays limited to the cross-run files listed above. Obvious one-offs — diagnostic/launcher scripts, ad-hoc test or invariance outputs, logs from exploratory work — belong in `archive`; when it's genuinely unclear whether an output will be reused, it's fine to leave it in the base folder. Nothing in `archive` is deleted automatically; the maintainer prunes it manually.  This folder is interchangeably referred to as the "archive folder" or the "scratch folder".
 
-### Preprocessing and augmentation
+### Computing accuracy metrics for all checkpoints
 
-- **448×448 input by squashing the whole frame**.  No scale-crop, no center-crop. With image-level labels and a small animal anywhere in frame, aggressive `RandomResizedCrop` would frequently crop the animal out, and val center-crop would clip edge animals. The downward-facing/baited-box geometry means low scale variation, so the whole frame at a fixed scale is fine, and train/val share the same field of view.
-- **Info-banner handling.** Reconyx top/bottom banners carry timestamp + temperature (a shortcut the model could exploit, that won't transfer to other cameras) and are the only consistent orientation cue. We *crop the banner at training* (measured for this dataset) and add *synthetic-banner augmentation* (random dark bars of varying height/content at top/bottom) so the model learns to ignore arbitrary banners on *other* cameras at inference. Day/night info still comes for free from IR-grayscale vs daytime color. The inference script makes the banner crop configurable (independent top/bottom; default off — robust thanks to the synthetic-banner aug).
-- **Geometric aug** (banner cropped ⇒ no canonical up/down): horizontal and vertical flips, 90°/mild rotation, mild affine translate/scale with reflection padding. Position jitter specifically fights camera-background memorization (cameras are static and we split by camera).
-- **Photometric aug**: brightness/contrast/saturation/hue, mild blur/noise.
-- Class imbalance handled at train time (balanced sampling / loss weighting), not by deleting animal data.
+Because the model tends to peak within the first epoch (and we write extra intermediate checkpoints through each epoch via `--intermediate-checkpoints-per-epoch`), we want validation accuracy for *every* checkpoint, not just the once-per-epoch numbers in `metrics.csv`. `evaluate_all_checkpoints.py` does that: it takes a checkpoint folder, an image folder, a ground-truth COCO file, and an output folder, and for each `*.ckpt` it strips the checkpoint to a temporary inference checkpoint (via `strip_checkpoint.py`), runs inference (via `run_inference.py`, sharding across GPUs with `--devices`), writes a MegaDetector-format results file into the output folder, and scores it against the ground truth (micro accuracy and macro / mean-per-class recall, compared by class name).
 
-## Inference-ready checkpoints
+```bash
+python evaluate_all_checkpoints.py ^
+  "c:\temp\california-small-animals-output\runs\eva02-20260629-lp\checkpoints" ^
+  "f:\data\california-small-animals-training\val" ^
+  "f:\data\california-small-animals-training\val\val_cct.json" ^
+  "c:\temp\california-small-animals-output\runs\eva02-20260629-lp\eval" ^
+  --devices 2
+```
+
+It runs on native Windows (like all our inference). The output folder ends up with one `<checkpoint-stem>.json` per checkpoint plus `accuracy_by_checkpoint.csv`, which has one row per checkpoint with columns `checkpoint_filename`, `checkpoint_index`, `accuracy` (micro), and `macro_accuracy`. `checkpoint_index` is -1 for `last.ckpt` and the 0-based training order (by `global_step`) for the rest, so sorting by it gives the chronological accuracy curve across both the intermediate and end-of-epoch checkpoints. The pass-through flags `--batch-size`, `--workers`, `--precision`, `--classifications`, and `--devices` are forwarded to each `run_inference` call (in practice only `--devices 2` is changed from the defaults; `run_inference` handles the multi-GPU split, so this script does not parallelize on its own). The run is resumable: a checkpoint whose results JSON already exists is re-scored without re-running inference, so delete a JSON to force its recomputation. Expect roughly 15 to 20 minutes per checkpoint over the full val set at `--devices 2`.
+
+### Extracting the best checkpoint
+
+After a run finishes (or you stop it early), the usual next step is to extract the single best epoch as a compact, inference-ready checkpoint. `copy_best_checkpoint.py <run-name>` does this: it finds the epoch with the highest `val/acc_macro`, strips the optimizer/scheduler/callback state from that epoch's checkpoint (reusing `strip_checkpoint.py`), and writes `<run-name>.best.epochNN.stripped.pt` to the run-folder root. That `.stripped.pt` is the self-describing inference format documented under "Inference-ready checkpoints", and is what `run_inference.py` consumes. The script errors if the chosen epoch's checkpoint is missing; pass `--half` to store fp16 weights.
+
+```bash
+python copy_best_checkpoint.py ${RUN_DIR}
+```
+
+It reads every `metrics*.csv` in the run folder, not just `metrics.csv`, because a resumed run spreads its per-epoch history across multiple files (see "Resuming training"). If the same epoch appears in more than one file (an abandoned attempt plus its post-resume redo), the highest-`step` row wins so the score matches the checkpoint actually on disk; ties on `val/acc_macro` go to the later epoch.
+
+### Creating inference-ready checkpoints
 
 `strip_checkpoint.py` converts a Lightning training checkpoint into a compact, self-describing `*.stripped.ckpt` (optimizer/scheduler/callback state removed; ~3.6 GB → ~1.2 GB). It is a plain dict saved with `torch.save` (load with `weights_only=False`); everything except `state_dict` is configuration metadata, i.e. plain numbers/strings, not code or a graph. `run_inference.py` reads these fields to rebuild the model and its preprocessing. Stored fields:
 
@@ -200,6 +199,23 @@ Archive folder (`archive`) — one-off scripts, exploratory logs, and throwaway 
 - `weights_dtype` — `float32` or `float16` (the dtype the weights are stored in).
 - `source_checkpoint`, `epoch`, `global_step` — provenance: which training checkpoint this was derived from.
 - `state_dict` — the timm model weights (the only non-metadata payload).
+
+## Running inference
+
+`run_inference.py` runs a trained classifier over a folder of images (searched recursively) and writes predictions in MegaDetector results format. Because this is a classification-only model, each image gets a single synthetic whole-image "detection" (category `object`, box `[0,0,1,1]`, confidence `1.0`) with the top-N class predictions attached as `[category_id, confidence]` pairs sorted high to low (4-decimal confidences); per-image read failures and whole-batch inference failures are recorded as per-image failure entries rather than aborting the run. It takes a stripped inference checkpoint (the `*.stripped.pt` / `*.stripped.ckpt` produced by `copy_best_checkpoint.py` / `strip_checkpoint.py`), from which it rebuilds the model and its exact preprocessing (see "Creating inference-ready checkpoints").
+
+```
+python run_inference.py <image-folder> <model.stripped.pt> <output.json> --devices 2 --checkpoint-frequency 250000
+```
+
+Key options:
+
+- `--devices N`: shard across N GPUs. The sorted image list is split into N contiguous shards, each run as its own subprocess pinned to one GPU (native-Windows-friendly, no NCCL) and merged back in order, so the result is identical to a 1-GPU run.
+- `--batch-size` / `--workers`: per-GPU batch size and DataLoader workers.
+- `--classifications N`: how many top classes to keep per image (default 3).
+- `--precision bf16|fp32`: `bf16` (default, fast, matches training) or `fp32` (slower, but ~deterministic across batch sizes; bf16 confidences wobble slightly with batch composition, though the top-1 class does not).
+
+Checkpointing and resume (for large jobs): `--checkpoint-frequency N` writes a progress file `<output>.progress.json` (same format as the output) after every N images, so an interrupted run can pick up where it left off. Just re-run the same command: an existing `<output>.progress.json` is detected and resumed automatically (images already present are skipped, matched by relative path), or point at a specific file with `--resume-file`. On a successful finish the progress file is deleted unless you pass `--no-delete-checkpoint-file`; `--checkpoint-frequency <= 0` disables checkpointing. Under the hood each chunk of N images is split across the GPUs and the checkpoint is written only once the whole chunk finishes, so checkpoint boundaries never need cross-GPU synchronization. Two costs push toward a *larger* frequency (a few hundred thousand is a good default): on multi-GPU each chunk spawns fresh shard subprocesses that reload the model (~1.2 GB/GPU), and each checkpoint rewrites the full accumulated results file.
 
 ## Label review / data cleanup
 
@@ -236,7 +252,6 @@ export RUN_NAME="eva02-20260630-llrd"
 
 ### P1
 
-- **Add checkpointing to inference script**
 - **Reduce penalties for partial mistakes**: consider adjusting the loss function so that for, e.g., a specific rodent species, predicting "other rodent" is penalized less than predicting "bird"
 - **New CDFW data:** Talk to CDFW about pulling in additional data
 - **Architecture A/B (if we want to push accuracy past eva02_large@448):** candidates to prioritize, roughly in order —

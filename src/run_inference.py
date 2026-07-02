@@ -1,4 +1,5 @@
 """
+
 Batch image classification -> MegaDetector-format output.
 
 This is a classification-only model, so each image gets a single synthetic
@@ -10,14 +11,22 @@ Loading/preprocessing happens in background DataLoader workers (one image at a
 time); the main thread pulls whole batches and runs the model. Per-image read
 failures and whole-batch inference failures are reported per the format spec.
 
-Multi-GPU (`--devices N`): the sorted file list is split into N contiguous shards,
-each run as its own subprocess pinned to one GPU; results are merged in order into
-a single output file (identical to the 1-GPU result).
+Multi-GPU (`--devices N`): the file list is split into N contiguous shards, each run as its own
+subprocess pinned to one GPU; results are merged in order into a single output file (identical to
+the 1-GPU result).
+
+Checkpointing (`--checkpoint-frequency N`): images are processed in chunks of N and a progress file
+(`<output>.progress.json`, same format as the output) is written after each chunk, so an
+interrupted run resumes automatically on restart (or from an explicit `--resume-file`). On
+multi-GPU each chunk is split into per-GPU shards and the checkpoint is written once the whole chunk
+finishes, so checkpoint boundaries never need cross-GPU synchronization.
 
 Usage:
   python run_inference.py <image-folder> <model.stripped.ckpt> <output.json>
       [--batch-size 32] [--workers 8] [--classifications 3]
       [--precision bf16|fp32] [--devices 2]
+      [--checkpoint-frequency N] [--resume-file FILE] [--no-delete-checkpoint-file]
+
 """
 
 #%% Imports and constants
@@ -81,6 +90,24 @@ def dump_json(obj, path):
     text = re.sub(rf'"{re.escape(_CONF)}(-?\d+\.\d+)"', r"\1", text)  # unquote conf tokens
     with open(path, "w", encoding="utf-8") as f:
         f.write(text)
+
+
+def _progress_path(output):
+    """
+    Derive the progress-checkpoint path from the output path: ``a/b/c/d.json`` ->
+    ``a/b/c/d.progress.json`` (if `output` does not end in ``.json``, ``.progress.json`` is
+    appended).
+
+    Args:
+        output (str): the final output JSON path
+
+    Returns:
+        str: the sibling progress-checkpoint path
+    """
+
+    if output.endswith(".json"):
+        return output[:-len(".json")] + ".progress.json"
+    return output + ".progress.json"
 
 
 def list_images(root):
@@ -263,23 +290,19 @@ def infer(model,
 # ...def infer(...)
 
 
-def build_output(rels, results, classes, model_basename, epoch, model_name=None):
+def _results_to_images(rels, results):
     """
-    Assemble the per-image inference results into a MegaDetector-format results dict. Each
+    Convert per-image inference result tuples into MegaDetector-format image entries. Each
     successful image gets a single synthetic whole-image detection with the top-N classifications
     attached; failures are written as per-image failure entries.
 
     Args:
-        rels (list of str): image paths, in output order
+        rels (list of str): image paths, aligned with `results`
         results (list): per-image entries as returned by infer()
-        classes (list of str): class names, indexed by class id
-        model_basename (str): basename of the model file, recorded in the output info block
-        epoch (int): training epoch recorded in the output info block
-        model_name (str, optional): timm model name recorded in the output info block
 
     Returns:
-        tuple: (out, n_fail), where out is the MegaDetector-format results dict and n_fail is the
-        number of images recorded as failures
+        tuple: (images, n_fail), the list of MD image dicts (in `rels` order) and the number
+        recorded as failures
     """
 
     images = []
@@ -296,7 +319,26 @@ def build_output(rels, results, classes, model_basename, epoch, model_name=None)
             kind = r[0] if r is not None else "FAIL_INFER"
             images.append({"file": rel,
                            "failure": FAIL_LOAD if kind == "FAIL_LOAD" else FAIL_INFER})
-    out = {
+    return images, n_fail
+
+
+def _assemble_output(images, classes, model_basename, epoch, model_name=None):
+    """
+    Wrap a list of MegaDetector-format image entries in the full results dict (info block plus the
+    detection/classification category maps).
+
+    Args:
+        images (list): MD image entries, in output order
+        classes (list of str): class names, indexed by class id
+        model_basename (str): basename of the model file, recorded in the info block
+        epoch (int): training epoch recorded in the info block
+        model_name (str, optional): timm model name recorded in the info block
+
+    Returns:
+        dict: the MegaDetector-format results dict
+    """
+
+    return {
         "info": {
             "classifier": model_basename,
             "classifier_metadata": {"model_name": model_name, "epoch": epoch},
@@ -309,74 +351,100 @@ def build_output(rels, results, classes, model_basename, epoch, model_name=None)
         "classification_categories": {str(i): c for i, c in enumerate(classes)},
         "images": images,
     }
-    return out, n_fail
+
+
+def build_output(rels, results, classes, model_basename, epoch, model_name=None):
+    """
+    Assemble the per-image inference results into a MegaDetector-format results dict (a thin
+    wrapper over _results_to_images + _assemble_output).
+
+    Args:
+        rels (list of str): image paths, in output order
+        results (list): per-image entries as returned by infer()
+        classes (list of str): class names, indexed by class id
+        model_basename (str): basename of the model file, recorded in the output info block
+        epoch (int): training epoch recorded in the output info block
+        model_name (str, optional): timm model name recorded in the output info block
+
+    Returns:
+        tuple: (out, n_fail), where out is the MegaDetector-format results dict and n_fail is the
+        number of images recorded as failures
+    """
+
+    images, n_fail = _results_to_images(rels, results)
+    return _assemble_output(images, classes, model_basename, epoch, model_name), n_fail
 
 
 def run_shard(args):
     """
-    Per-GPU worker entry point: run inference over this shard's contiguous slice of the sorted
-    image list and pickle the results (plus metadata) to the shard output file. The parent sets
-    CUDA_VISIBLE_DEVICES so this process sees a single GPU.
+    Per-GPU worker entry point: run inference over an explicit list of (index, relative-path) items
+    (written by the parent to a pickle file) and pickle the per-item results plus metadata back to
+    the shard output file. The parent sets CUDA_VISIBLE_DEVICES so this process sees a single GPU.
 
     Args:
         args (argparse.Namespace): parsed CLI arguments, including the internal sharding fields
-            _shard_index, _shard_count, and _shard_output
+            _shard_input (pickle of the item list) and _shard_output (pickle to write)
     """
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     if args.precision == "fp32":
         torch.set_float32_matmul_precision("highest")
     model, transform, ck = load_model(args.model, device)
-    rels = list_images(args.folder)
-    per = math.ceil(len(rels) / args._shard_count)
-    start = args._shard_index * per
-    sub = rels[start:min(len(rels), start + per)]
+    with open(args._shard_input, "rb") as f:
+        items = pickle.load(f)                       # list of (abs_index, rel)
+    rels = [rel for _, rel in items]
     n_top = min(args.classifications, len(ck["classes"]))
-    res = infer(model, transform, ck["img_size"], args.folder, sub, args.batch_size,
-                args.workers, n_top, args.precision, device,
-                progress_prefix=f"[gpu{args._shard_index}] ")
+    gpu = os.environ.get("CUDA_VISIBLE_DEVICES", "?")
+    res = infer(model, transform, ck["img_size"], args.folder, rels, args.batch_size,
+                args.workers, n_top, args.precision, device, progress_prefix=f"[gpu{gpu}] ")
+    out_items = [(items[j][0], res[j]) for j in range(len(items))]
     with open(args._shard_output, "wb") as f:
-        pickle.dump({"start": start, "results": res, "classes": ck["classes"],
-                     "model_basename": os.path.basename(args.model),
+        pickle.dump({"items": out_items, "classes": ck["classes"],
                      "model_name": ck["model_name"], "epoch": ck.get("epoch")}, f)
 
 
-def run_parallel(folder, model, output, batch_size, workers, classifications,
-                 precision, devices, rels):
+def _infer_chunk_parallel(folder, model, items, batch_size, workers, classifications,
+                          precision, devices):
     """
-    Parent-side multi-GPU driver: launch one subprocess per GPU (each pinned to one device via
-    CUDA_VISIBLE_DEVICES), wait for them, and merge their pickled shard results back into a single
-    ordered result set.
+    Run inference over one chunk of work across `devices` GPUs: split `items` into contiguous
+    per-GPU shards, launch one subprocess per shard (each pinned to a single device), and merge
+    the pickled per-item results. Every call spawns fresh shard processes (each reloads the model),
+    which is what keeps checkpoint boundaries free of cross-GPU synchronization.
 
     Args:
         folder (str): image folder passed to each shard
         model (str): path to the stripped inference checkpoint
-        output (str): output JSON path (passed through to the shard subprocesses)
+        items (list): (abs_index, rel) pairs to process this chunk
         batch_size (int): per-GPU batch size
         workers (int): per-GPU DataLoader workers
         classifications (int): number of top classifications to keep per image
         precision (str): "bf16" or "fp32"
         devices (int): number of GPUs / shards to launch
-        rels (list of str): the full sorted image list, used to size and order the merged results
 
     Returns:
-        tuple: (out, n_fail) as returned by build_output over the merged results
+        tuple: (results_by_index, meta), where results_by_index maps abs_index -> result tuple and
+        meta holds the classes/model_name/epoch reported by the shards
     """
 
     tmpdir = tempfile.mkdtemp(prefix="csa_infer_")
     procs = []
     try:
+        per = math.ceil(len(items) / devices)
         for i in range(devices):
-            outp = os.path.join(tmpdir, f"shard_{i}.pkl")
-            cmd = [sys.executable, os.path.abspath(__file__), folder, model,
-                   output, "--batch-size", str(batch_size),
-                   "--workers", str(workers), "--classifications",
-                   str(classifications), "--precision", precision,
-                   "--_shard-index", str(i), "--_shard-count", str(devices),
-                   "--_shard-output", outp]
+            shard_items = items[i * per:(i + 1) * per]
+            if not shard_items:
+                continue
+            inp = os.path.join(tmpdir, f"in_{i}.pkl")
+            outp = os.path.join(tmpdir, f"out_{i}.pkl")
+            with open(inp, "wb") as f:
+                pickle.dump(shard_items, f)
+            cmd = [sys.executable, os.path.abspath(__file__), folder, model, os.devnull,
+                   "--batch-size", str(batch_size), "--workers", str(workers),
+                   "--classifications", str(classifications), "--precision", precision,
+                   "--_shard-input", inp, "--_shard-output", outp]
             env = dict(os.environ, CUDA_VISIBLE_DEVICES=str(i))
             procs.append((subprocess.Popen(cmd, env=env), outp))
-        full = [None] * len(rels)
+        results_by_index = {}
         meta = None
         for p, outp in procs:
             if p.wait() != 0:
@@ -384,10 +452,9 @@ def run_parallel(folder, model, output, batch_size, workers, classifications,
             with open(outp, "rb") as f:
                 d = pickle.load(f)
             meta = d
-            for k, r in enumerate(d["results"]):
-                full[d["start"] + k] = r
-        return build_output(rels, full, meta["classes"], meta["model_basename"],
-                            meta["epoch"], meta["model_name"])
+            for abs_idx, r in d["items"]:
+                results_by_index[abs_idx] = r
+        return results_by_index, meta
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
@@ -399,11 +466,20 @@ def run_inference(folder,
                   workers=8,
                   classifications=3,
                   precision="bf16",
-                  devices=1):
+                  devices=1,
+                  checkpoint_frequency=None,
+                  resume_file=None,
+                  delete_checkpoint_file=True):
     """
     Run classification inference over all images under `folder` and write a MegaDetector-format
     JSON to `output`. Uses multi-GPU sharding when devices > 1 and a GPU is available, otherwise
     runs in-process on a single device.
+
+    With `checkpoint_frequency` set, images are processed in chunks of that many and a progress
+    checkpoint (``<output>.progress.json``, same format as the output) is written after each chunk,
+    so an interrupted run can resume. On start, an explicit `resume_file` (or, when checkpointing is
+    enabled, an auto-detected ``<output>.progress.json``) is loaded and its already-completed images
+    are skipped.
 
     Args:
         folder (str): image folder to search recursively
@@ -414,6 +490,13 @@ def run_inference(folder,
         classifications (int, optional): number of top classifications to keep per image
         precision (str, optional): "bf16" (default) or "fp32"
         devices (int, optional): number of GPUs to shard across; 1 runs in-process
+        checkpoint_frequency (int, optional): images between progress checkpoints; None or <= 0
+            disables checkpointing
+        resume_file (str, optional): a progress JSON to resume from; already-present images are
+            skipped. If None and checkpointing is enabled, an existing ``<output>.progress.json``
+            is detected and resumed automatically
+        delete_checkpoint_file (bool, optional): delete the progress checkpoint after a successful
+            run (ignored when checkpointing is disabled)
 
     Returns:
         tuple: (out, n_fail), where out is the MegaDetector-format results dict and n_fail is the
@@ -428,23 +511,98 @@ def run_inference(folder,
     if not rels:
         return None
 
-    if devices > 1 and torch.cuda.is_available():
-        out, n_fail = run_parallel(folder, model, output, batch_size, workers,
-                                   classifications, precision, devices, rels)
-    else:
+    # <= 0 means "no checkpointing"
+    if (checkpoint_frequency is not None) and (checkpoint_frequency <= 0):
+        checkpoint_frequency = None
+
+    progress_path = _progress_path(output)
+
+    # resolve the resume source: an explicit resume_file wins; otherwise, when checkpointing is
+    # enabled, an existing progress file is detected and resumed automatically
+    resume_from = resume_file
+    if (resume_from is None) and (checkpoint_frequency is not None) and os.path.exists(progress_path):
+        resume_from = progress_path
+        print(f"found existing checkpoint, resuming automatically: {progress_path}", flush=True)
+
+    # load already-completed images (keyed by relative path)
+    prior = None
+    images_by_rel = {}
+    if resume_from:
+        if os.path.exists(resume_from):
+            with open(resume_from, encoding="utf-8") as f:
+                prior = json.load(f)
+            for im in prior.get("images", []):
+                images_by_rel[im["file"]] = im
+            print(f"resuming from {resume_from}: {len(images_by_rel):,} images already done",
+                  flush=True)
+        else:
+            print(f"resume-file not found, starting fresh: {resume_from}", flush=True)
+
+    remaining = [(i, rel) for i, rel in enumerate(rels) if rel not in images_by_rel]
+
+    # nothing left to do (resuming an already-complete run): finalize from the checkpoint
+    if not remaining:
+        print(f"all {len(rels):,} images already present in the checkpoint; finalizing", flush=True)
+        if os.path.abspath(resume_from) != os.path.abspath(output):
+            shutil.copyfile(resume_from, output)
+        n_fail = sum(1 for im in images_by_rel.values() if "failure" in im)
+        print(f"wrote {output}  ({len(images_by_rel):,} images, {n_fail} failures)", flush=True)
+        if checkpoint_frequency and delete_checkpoint_file and os.path.exists(progress_path):
+            os.remove(progress_path)
+        return prior, n_fail
+
+    # metadata for assembling output; filled from the single-device checkpoint or the shard results
+    classes = model_name = epoch = None
+    model_basename = os.path.basename(model)
+
+    single = not ((devices > 1) and torch.cuda.is_available())
+    if single:
         device = "cuda" if torch.cuda.is_available() else "cpu"
         if precision == "fp32":
             torch.set_float32_matmul_precision("highest")
         model_obj, transform, ck = load_model(model, device)
+        classes, model_name, epoch, img_size = (ck["classes"], ck["model_name"],
+                                                ck.get("epoch"), ck["img_size"])
         n_top = min(classifications, len(ck["classes"]))
-        res = infer(model_obj, transform, ck["img_size"], folder, rels,
-                    batch_size, workers, n_top, precision, device)
-        out, n_fail = build_output(rels, res, ck["classes"],
-                                   os.path.basename(model), ck.get("epoch"),
-                                   ck["model_name"])
 
+    chunk = checkpoint_frequency if checkpoint_frequency else len(remaining)
+    if checkpoint_frequency:
+        print(f"processing {len(remaining):,} remaining images in chunks of {chunk:,} "
+              f"(checkpoint -> {progress_path})", flush=True)
+
+    for c0 in range(0, len(remaining), chunk):
+        chunk_items = remaining[c0:c0 + chunk]
+        chunk_rels = [rel for _, rel in chunk_items]
+        if single:
+            res_list = infer(model_obj, transform, img_size, folder, chunk_rels,
+                             batch_size, workers, n_top, precision, device)
+        else:
+            results_by_index, meta = _infer_chunk_parallel(
+                folder, model, chunk_items, batch_size, workers, classifications, precision, devices)
+            classes, model_name, epoch = meta["classes"], meta["model_name"], meta["epoch"]
+            res_list = [results_by_index[idx] for idx, _ in chunk_items]
+
+        imgs, _ = _results_to_images(chunk_rels, res_list)
+        for im in imgs:
+            images_by_rel[im["file"]] = im
+
+        if checkpoint_frequency:
+            done_imgs = [images_by_rel[r] for r in rels if r in images_by_rel]
+            dump_json(_assemble_output(done_imgs, classes, model_basename, epoch, model_name),
+                      progress_path)
+            print(f"checkpoint: {len(done_imgs):,}/{len(rels):,} images -> {progress_path}",
+                  flush=True)
+
+    all_imgs = [images_by_rel[r] for r in rels if r in images_by_rel]
+    out = _assemble_output(all_imgs, classes, model_basename, epoch, model_name)
+    n_fail = sum(1 for im in all_imgs if "failure" in im)
     dump_json(out, output)
-    print(f"wrote {output}  ({len(out['images']):,} images, {n_fail} failures)", flush=True)
+    print(f"wrote {output}  ({len(all_imgs):,} images, {n_fail} failures)", flush=True)
+
+    if checkpoint_frequency and delete_checkpoint_file and os.path.exists(progress_path):
+        os.remove(progress_path)
+        print(f"removed checkpoint {progress_path}", flush=True)
+
     return out, n_fail
 
 # ...def run_inference(...)
@@ -471,19 +629,31 @@ def main():
                          "(slower, ~deterministic across batch sizes)")
     ap.add_argument("--devices", type=int, default=1,
                     help="number of GPUs to shard across (default 1)")
+    ap.add_argument("--checkpoint-frequency", type=int, default=None,
+                    help="write a progress checkpoint (<output>.progress.json) every N images so "
+                         "an interrupted run can resume; <= 0 disables checkpointing (default: off)")
+    ap.add_argument("--resume-file", default=None,
+                    help="a progress JSON to resume from; images already present in it are skipped. "
+                         "If omitted, an existing <output>.progress.json is detected and resumed "
+                         "automatically when checkpointing is enabled")
+    ap.add_argument("--delete-checkpoint-file", action=argparse.BooleanOptionalAction, default=True,
+                    help="delete the progress checkpoint after a successful run (ignored when "
+                         "checkpointing is disabled)")
     # internal (per-GPU subprocess) flags
-    ap.add_argument("--_shard-index", type=int, default=None, help=argparse.SUPPRESS)
-    ap.add_argument("--_shard-count", type=int, default=None, help=argparse.SUPPRESS)
+    ap.add_argument("--_shard-input", default=None, help=argparse.SUPPRESS)
     ap.add_argument("--_shard-output", default=None, help=argparse.SUPPRESS)
     args = ap.parse_args()
 
-    if args._shard_index is not None:        # we are a per-GPU worker
+    if args._shard_input is not None:        # we are a per-GPU worker
         run_shard(args)
         return
 
     run_inference(args.folder, args.model, args.output, batch_size=args.batch_size,
                   workers=args.workers, classifications=args.classifications,
-                  precision=args.precision, devices=args.devices)
+                  precision=args.precision, devices=args.devices,
+                  checkpoint_frequency=args.checkpoint_frequency,
+                  resume_file=args.resume_file,
+                  delete_checkpoint_file=args.delete_checkpoint_file)
 
 
 if __name__ == "__main__":
